@@ -178,46 +178,28 @@ function procesarYRenderizar() {
     const showRate = totalCitas > 0 ? (totalShows / totalCitas) * 100 : 0;
 
     // 5.3 INYECCIÓN EN EL HTML (VISTA GENERAL)
-    const kpiContainer = document.getElementById('kpi-container-general');
-    if (kpiContainer) {
-        kpiContainer.innerHTML = `
-            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-                <div class="metric-title">Volumen de Leads</div>
-                <div class="metric-value">${totalLeads}</div>
-                <div class="metric-subtitle">Evaluados en este rango</div>
-            </div>
+    // (Dentro de procesarYRenderizar en app.js)
+    
+    // 5.4 Filtrar las bases de datos...
+    const leadsF = window.AppData.raw.leads.filter(...);
+    const contactadosF = window.AppData.raw.contactados.filter(...);
+    const llamadasF = window.AppData.raw.llamadas.filter(...);
+    const citasF = window.AppData.raw.citas.filter(...);
+    const showsF = window.AppData.raw.shows.filter(...);
 
-            <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
-                <div class="metric-title">Contact Rate</div>
-                <div class="metric-value">${contactRate.toFixed(1)}%</div>
-                <div class="metric-subtitle">${totalContactados} Leads Únicos Contactados</div>
-            </div>
+    // Creamos el objeto filtrado
+    const dataFiltrada = {
+        leads: leadsF,
+        contactados: contactadosF,
+        llamadas: llamadasF,
+        citas: citasF,
+        shows: showsF
+    };
 
-            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-                <div class="metric-title">Citas Agendadas</div>
-                <div class="metric-value">${totalCitas}</div>
-                <div class="metric-subtitle">Booking Rate: ${bookingRate.toFixed(1)}%</div>
-            </div>
-
-            <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
-                <div class="metric-title text-success">Shows Totales</div>
-                <div class="metric-value text-success">${totalShows}</div>
-                <div class="metric-subtitle">Asistencia: ${showRate.toFixed(1)}%</div>
-            </div>
-            
-            <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
-                <div class="metric-title text-success">Ventas Cerradas</div>
-                <div class="metric-value text-success">0</div>
-                <div class="metric-subtitle">Win Rate: 0%</div>
-            </div>
-
-            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-                <div class="metric-title">Coste x Cita Generada</div>
-                <div class="metric-value">$0.00</div>
-                <div class="metric-subtitle">Inversión: Pendiente Meta Ads</div>
-            </div>
-        `;
-    }
+    // 5.5 LLAMAR A LOS MÓDULOS EXTERNOS
+    if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
+    if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
+    if (typeof renderizarGraficos === 'function') renderizarGraficos(dataFiltrada);
 }
 
 // 6. ESCUCHADORES DE EVENTOS
