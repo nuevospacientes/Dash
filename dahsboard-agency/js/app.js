@@ -95,7 +95,7 @@ async function loadAllData() {
             document.getElementById('welcome-message').innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
         }
 
-    } } catch (error) {
+    } catch (error) {
         console.error("Detalle técnico del error:", error);
         
         mostrarErrorSistema(
