@@ -16,13 +16,16 @@ function renderizarGraficos(dataFiltrada) {
     const llamadas = dataFiltrada.llamadas || []; 
     const citas = dataFiltrada.citas || [];
     const shows = dataFiltrada.shows || [];
+    
+    // EXTRAEMOS LOS LÍMITES DEL FILTRO GLOBAL
+    const { start, end } = dataFiltrada.dateRange || { start: null, end: null };
 
     // ==========================================
     // 1. TENDENCIA DIARIA DEL EMBUDO (6 Variables)
     // ==========================================
     let timeline = {};
     
-    // Función optimizada para agrupar fechas evitando el error de "gráfico infinito"
+    // Función optimizada con CORTAFUEGOS
     const agruparPorFecha = (array, propFecha, key, filterFn = null) => {
         if (!array) return;
         array.forEach(item => {
@@ -31,11 +34,16 @@ function renderizarGraficos(dataFiltrada) {
             let rawDate = item[propFecha];
             if (!rawDate) return;
 
-            // Usamos tu función parseDateSpanish para estandarizar
             let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate) : new Date(rawDate);
             
-            // Verificación estricta: solo fechas válidas entran al gráfico
             if (d && !isNaN(new Date(d).getTime())) {
+                let t = new Date(d).getTime();
+                
+                // CORTAFUEGOS: Si la fecha está fuera del filtro seleccionado, la ignoramos.
+                if (start !== null && end !== null) {
+                    if (t < start || t >= end) return; 
+                }
+
                 let fechaStr = new Date(d).toISOString().split('T')[0];
                 
                 if (!timeline[fechaStr]) {
