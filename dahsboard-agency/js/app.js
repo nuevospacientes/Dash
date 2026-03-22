@@ -2,6 +2,47 @@
    EL CEREBRO: DESCARGA, LIMPIEZA Y CÁLCULOS
    ========================================== */
 
+/* ==========================================
+   SISTEMA GLOBAL DE MANEJO DE ERRORES
+   ========================================== */
+
+// Función para mostrar el modal de error
+function mostrarErrorSistema(problema, ubicacion, solucion) {
+    document.getElementById('error-msg').innerText = problema;
+    document.getElementById('error-location').innerText = ubicacion;
+    document.getElementById('error-fix').innerText = solucion;
+    document.getElementById('modal-error').style.display = 'flex';
+    
+    // Si la pantalla de carga estaba activa, la ocultamos
+    document.getElementById('welcome-message').innerHTML = `<span style="color: var(--accent-danger)">Error en el sistema</span>`;
+}
+
+// Cerrar el modal
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('close-error-modal').addEventListener('click', () => {
+        document.getElementById('modal-error').style.display = 'none';
+    });
+});
+
+// 1. CAZADOR DE ERRORES DE CÓDIGO (Variables no definidas, sintaxis rota, etc.)
+window.addEventListener('error', function(e) {
+    mostrarErrorSistema(
+        e.message,
+        `Archivo: ${e.filename} (Línea ${e.lineno})`,
+        "Presiona F12 para abrir la consola de desarrollador y buscar el error en rojo. Probablemente falta una coma, hay un error de tipeo, o una variable no existe."
+    );
+});
+
+// 2. CAZADOR DE ERRORES ASÍNCRONOS (Promesas, fallos de red, etc.)
+window.addEventListener('unhandledrejection', function(e) {
+    mostrarErrorSistema(
+        "Fallo al comunicarse con los datos externos (Google Sheets).",
+        "Petición de Red / Promesa Rechazada",
+        "1. Verifica que tengas conexión a internet.\n2. Asegúrate de que los enlaces en config.js sean correctos y terminen en 'output=csv'.\n3. Confirma que la hoja de Google Sheets siga estando 'Publicada en la web'."
+    );
+});
+
+
 // 1. Promesa para envolver PapaParse y hacerlo asíncrono
 function fetchCSV(url) {
     return new Promise((resolve, reject) => {
@@ -54,9 +95,14 @@ async function loadAllData() {
             document.getElementById('welcome-message').innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
         }
 
-    } catch (error) {
-        console.error("Error al descargar los CSV:", error);
-        alert("Hubo un error al conectar con las bases de datos.");
+    } } catch (error) {
+        console.error("Detalle técnico del error:", error);
+        
+        mostrarErrorSistema(
+            "No se pudieron descargar o procesar los archivos CSV.",
+            "Función loadAllData() en app.js",
+            "1. Revisa que todas las URLs en config.js estén correctamente escritas.\n2. Revisa que ningún Google Sheet haya sido eliminado o puesto como privado.\n3. Verifica si los encabezados del CSV no han cambiado de nombre."
+        );
     }
 }
 
