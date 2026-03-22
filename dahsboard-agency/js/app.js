@@ -35,12 +35,16 @@ async function loadAllData() {
 
         // Guardamos la data cruda
         window.AppData.raw = {
-            leads: leadsGenerados, contactados: leadsContactados,
-            llamadas: llamadasConectadas, citas: citasGeneradas,
-            shows: shows, noShows: noShows, cancelados: cancelaCita
+            leads: leadsGenerados, 
+            contactados: leadsContactados,
+            llamadas: llamadasConectadas, 
+            citas: citasGeneradas,
+            shows: shows, 
+            noShows: noShows, 
+            cancelados: cancelaCita
         };
 
-        console.log("✅ Toda la data descargada con éxito");
+        console.log("✅ Toda la data descargada con éxito", window.AppData.raw);
         
         poblarFiltros();
         procesarYRenderizar();
@@ -119,7 +123,7 @@ function getRangoFechas() {
     const val = document.getElementById('global-date-filter').value;
     let start = null, end = null;
     const now = new Date(); 
-    now.setHours(0,0,0,0); // Hoy a las 00:00:00
+    now.setHours(0,0,0,0);
 
     if(val === 'today') { start = now.getTime(); end = now.getTime() + 86400000; }
     else if(val === 'yesterday') { start = now.getTime() - 86400000; end = now.getTime(); }
@@ -150,61 +154,40 @@ function procesarYRenderizar() {
         
         if (start !== null && end !== null && colFecha && row[colFecha]) {
             const rowTime = parseDateSpanish(row[colFecha]);
-            // Excluimos si la fecha no cae en el rango seleccionado
             if (rowTime && (rowTime < start || rowTime >= end)) return false;
         }
         return true;
     };
 
-    // 5.1 FILTRADO DE TUS HOJAS REALES
-    // Usamos los nombres EXACTOS de las columnas de tus CSVs
+    // 5.1 FILTRADO DE TODAS TUS HOJAS REALES
     const leadsF = window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead'));
     const contactadosF = window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra'));
+    const llamadasF = window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra'));
     const citasF = window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada'));
     const showsF = window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
+    const noShowsF = window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
+    const canceladosF = window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
 
-    // 5.2 CÁLCULO DE KPIs
-    const totalLeads = leadsF.length;
-    
-    // Deduplicación de Contactos (Usando el "Numero" como identificador único)
-    const setContactados = new Set(contactadosF.map(c => c['Numero']).filter(n => n));
-    const totalContactados = setContactados.size;
-    const contactRate = totalLeads > 0 ? (totalContactados / totalLeads) * 100 : 0;
-
-    const totalCitas = citasF.length;
-    const bookingRate = totalLeads > 0 ? (totalCitas / totalLeads) * 100 : 0;
-
-    const totalShows = showsF.length;
-    const showRate = totalCitas > 0 ? (totalShows / totalCitas) * 100 : 0;
-
-    // 5.3 INYECCIÓN EN EL HTML (VISTA GENERAL)
-    // (Dentro de procesarYRenderizar en app.js)
-    
-    // 5.4 Filtrar las bases de datos...
-    const leadsF = window.AppData.raw.leads.filter(...);
-    const contactadosF = window.AppData.raw.contactados.filter(...);
-    const llamadasF = window.AppData.raw.llamadas.filter(...);
-    const citasF = window.AppData.raw.citas.filter(...);
-    const showsF = window.AppData.raw.shows.filter(...);
-
-    // Creamos el objeto filtrado
+    // Empaquetamos todo limpio y filtrado
     const dataFiltrada = {
         leads: leadsF,
         contactados: contactadosF,
         llamadas: llamadasF,
         citas: citasF,
-        shows: showsF
+        shows: showsF,
+        noShows: noShowsF,
+        cancelados: canceladosF
     };
 
-    // 5.5 LLAMAR A LOS MÓDULOS EXTERNOS
+    // 5.2 LLAMAR A LOS MÓDULOS EXTERNOS PARA QUE DIBUJEN LA INTERFAZ
     if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
     if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
     if (typeof renderizarGraficos === 'function') renderizarGraficos(dataFiltrada);
 }
 
-// 6. ESCUCHADORES DE EVENTOS
+// 6. ESCUCHADORES DE EVENTOS GLOBALES
 document.getElementById('global-date-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-campaign-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-operator-filter').addEventListener('change', procesarYRenderizar);
-document.getElementById('global-timezone').addEventListener('change', procesarYRenderizar); // Detecta cambio de zona horaria
+document.getElementById('global-timezone').addEventListener('change', procesarYRenderizar);
 document.getElementById('btn-refresh').addEventListener('click', loadAllData);
