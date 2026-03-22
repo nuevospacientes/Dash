@@ -358,6 +358,7 @@ body {
     padding: 20px;
     box-shadow: var(--shadow);
     transition: transform 0.2s, border-color 0.2s;
+    text-align: center;
 }
 
 .kpi-card:hover {
