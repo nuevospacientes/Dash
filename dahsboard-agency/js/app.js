@@ -176,13 +176,24 @@ function getRangoFechas() {
     else if(val === '7days') { start = now.getTime() - (7 * 86400000); end = now.getTime() + 86400000; }
     else if(val === '14days') { start = now.getTime() - (14 * 86400000); end = now.getTime() + 86400000; }
     else if(val === '30days') { start = now.getTime() - (30 * 86400000); end = now.getTime() + 86400000; }
-    else if(val === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); end = now.getTime() + 86400000; }
-    else if(val === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(); end = new Date(now.getFullYear(), now.getMonth(), 0).getTime() + 86400000; }
-    else if(val === 'thisYear') { start = new Date(now.getFullYear(), 0, 1).getTime(); end = now.getTime() + 86400000; }
+    
+    // CORRECCIÓN: "Este Mes" ahora abarca hasta el día 1 del mes SIGUIENTE para incluir todo
+    else if(val === 'thisMonth') { 
+        start = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); 
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime(); 
+    }
+    else if(val === 'lastMonth') { 
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(); 
+        end = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); 
+    }
+    // CORRECCIÓN: "Este Año" ahora abarca los 12 meses completos
+    else if(val === 'thisYear') { 
+        start = new Date(now.getFullYear(), 0, 1).getTime(); 
+        end = new Date(now.getFullYear() + 1, 0, 1).getTime(); 
+    }
     
     return { start, end };
 }
-
 // ==========================================
 // 5. MOTOR DE PROCESAMIENTO Y RENDERIZADO
 // ==========================================
@@ -194,13 +205,23 @@ function procesarYRenderizar() {
     const { start, end } = getRangoFechas();
 
     // Filtro Universal (Evalúa Campaña, Operador y Fecha exacta)
+    // Filtro Universal (Evalúa Campaña, Operador y Fecha exacta)
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
         if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
         if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
         
-        if (start !== null && end !== null && colFecha && row[colFecha]) {
+        // CORRECCIÓN: Lógica de exclusión estricta (Fail-Closed)
+        if (start !== null && end !== null && colFecha) {
+            // 1. Si la celda está vacía, rechazamos la fila
+            if (!row[colFecha]) return false;
+            
             const rowTime = parseDateSpanish(row[colFecha]);
-            if (rowTime && (rowTime < start || rowTime >= end)) return false;
+            
+            // 2. Si la celda tiene texto pero no es una fecha entendible, la rechazamos
+            if (!rowTime) return false; 
+            
+            // 3. Si la fecha existe pero está fuera del rango seleccionado, la rechazamos
+            if (rowTime < start || rowTime >= end) return false;
         }
         return true;
     };
