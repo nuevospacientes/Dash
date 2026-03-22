@@ -369,3 +369,76 @@ body {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* ESTILOS ADICIONALES PARA TABLAS Y BARRAS DE PROGRESO */
+.metric-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 5px;
+}
+
+.text-success { color: var(--accent-success) !important; }
+.bg-success { background-color: var(--accent-success) !important; }
+.bg-primary { background-color: var(--brand-primary) !important; }
+
+.progress-bar-bg {
+    width: 100%;
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+[data-theme="light"] .progress-bar-bg { background-color: rgba(0, 0, 0, 0.1); }
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease-out;
+}
+
+.chart-title {
+    font-size: 1rem;
+    color: var(--text-main);
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.data-table th {
+    padding: 12px 15px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table td {
+    padding: 15px;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+
+[data-theme="light"] .data-table td {
+    border-bottom: 1px solid rgba(0,0,0,0.02);
+}
+
+.data-table tr:hover td {
+    background-color: rgba(255,255,255,0.02);
+}
+[data-theme="light"] .data-table tr:hover td {
+    background-color: rgba(0,0,0,0.02);
+}
+
+.clickable-card { cursor: pointer; }
+.clickable-card:active { transform: scale(0.98); }
