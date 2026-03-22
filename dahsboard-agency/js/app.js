@@ -9,31 +9,20 @@ function fetchCSV(url) {
             download: true,
             header: true,
             skipEmptyLines: true,
-            complete: function(results) {
-                resolve(results.data);
-            },
-            error: function(err) {
-                reject(err);
-            }
+            complete: function(results) { resolve(results.data); },
+            error: function(err) { reject(err); }
         });
     });
 }
 
-// 2. Función Maestra de Inicialización (Se llama desde auth.js al loguearse)
+// 2. Función Maestra de Inicialización
 async function loadAllData() {
-    // Cambiar mensaje de carga
     document.getElementById('welcome-message').innerText = "Descargando bases de datos...";
     
     try {
-        // Descarga de TODOS los CSV al mismo tiempo (¡Súper rápido!)
         const [
-            leadsGenerados, 
-            leadsContactados, 
-            llamadasConectadas, 
-            citasGeneradas, 
-            shows, 
-            noShows, 
-            cancelaCita
+            leadsGenerados, leadsContactados, llamadasConectadas, 
+            citasGeneradas, shows, noShows, cancelaCita
         ] = await Promise.all([
             fetchCSV(DB_URLS.leadsGenerados),
             fetchCSV(DB_URLS.leadsContactados),
@@ -44,138 +33,196 @@ async function loadAllData() {
             fetchCSV(DB_URLS.cancelaCita)
         ]);
 
-        // Guardamos la data cruda globalmente
+        // Guardamos la data cruda
         window.AppData.raw = {
-            leads: leadsGenerados,
-            contactados: leadsContactados,
-            llamadas: llamadasConectadas,
-            citas: citasGeneradas,
-            shows: shows,
-            noShows: noShows,
-            cancelados: cancelaCita
+            leads: leadsGenerados, contactados: leadsContactados,
+            llamadas: llamadasConectadas, citas: citasGeneradas,
+            shows: shows, noShows: noShows, cancelados: cancelaCita
         };
 
-        console.log("✅ Toda la data descargada:", window.AppData.raw);
+        console.log("✅ Toda la data descargada con éxito");
         
-        // Llenar los selectores (Campañas y Operadores)
         poblarFiltros();
-
-        // Procesar y mostrar los datos por primera vez
         procesarYRenderizar();
 
-        // Restaurar el saludo
         const session = JSON.parse(localStorage.getItem('np_session'));
-        document.getElementById('welcome-message').innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
+        if(session) {
+            document.getElementById('welcome-message').innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
+        }
 
     } catch (error) {
         console.error("Error al descargar los CSV:", error);
-        alert("Hubo un error al conectar con las bases de datos. Revisa la consola.");
+        alert("Hubo un error al conectar con las bases de datos.");
     }
 }
 
-// 3. Llenar los desplegables de Campañas y Operadores
+// 3. Llenar Desplegables
 function poblarFiltros() {
     const campañas = new Set();
     const operadores = new Set();
 
-    // Extraer campañas de los leads
-    window.AppData.raw.leads.forEach(row => {
-        if(row['Campaña']) campañas.add(row['Campaña'].trim());
-    });
-
-    // Extraer operadores de las citas y shows
-    window.AppData.raw.citas.forEach(row => {
-        if(row['Operador']) operadores.add(row['Operador'].trim());
-    });
+    window.AppData.raw.leads.forEach(row => { if(row['Campaña']) campañas.add(row['Campaña'].trim()); });
+    window.AppData.raw.citas.forEach(row => { if(row['Operador']) operadores.add(row['Operador'].trim()); });
 
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
 
-    // Inyectar en el HTML
-    Array.from(campañas).sort().forEach(camp => {
-        campFilter.innerHTML += `<option value="${camp}">${camp}</option>`;
-    });
+    // Limpiar antes de llenar para evitar duplicados
+    campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
+    opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
 
-    Array.from(operadores).sort().forEach(op => {
-        opFilter.innerHTML += `<option value="${op}">${op}</option>`;
-    });
+    Array.from(campañas).sort().forEach(camp => campFilter.innerHTML += `<option value="${camp}">${camp}</option>`);
+    Array.from(operadores).sort().forEach(op => opFilter.innerHTML += `<option value="${op}">${op}</option>`);
 }
 
-// 4. El Motor de Procesamiento (Se ejecuta cada vez que cambias un filtro)
+// ==========================================
+// 4. MOTOR INTELIGENTE DE FECHAS
+// ==========================================
+
+// Convierte los 3 formatos de tus CSVs a Tiempo Real (Milisegundos)
+function parseDateSpanish(dateStr) {
+    if (!dateStr) return null;
+    let str = dateStr.toString().toLowerCase().trim();
+    
+    const meses = {
+        'ene': 0, 'enero': 0, 'feb': 1, 'febrero': 1, 'mar': 2, 'marzo': 2,
+        'abr': 3, 'abril': 3, 'may': 4, 'mayo': 4, 'jun': 5, 'junio': 5,
+        'jul': 6, 'julio': 6, 'ago': 7, 'agosto': 7, 'sep': 8, 'septiembre': 8,
+        'oct': 9, 'octubre': 9, 'nov': 10, 'noviembre': 10, 'dic': 11, 'diciembre': 11
+    };
+
+    // Formato 1: 21/3/2026
+    if (str.includes('/')) {
+        const p = str.split('/');
+        if (p.length >= 3) return new Date(p[2], p[1] - 1, p[0]).getTime();
+    }
+    
+    // Formato 2: 21 de marzo de 2026
+    if (str.includes(' de ')) {
+        const p = str.split(' de ');
+        if (p.length === 3) return new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
+    }
+
+    // Formato 3: 7-jul (Asumimos 2026 por defecto si no hay año)
+    if (str.includes('-') && str.split('-').length === 2) {
+        const p = str.split('-');
+        let year = 2026; 
+        return new Date(year, meses[p[1]], parseInt(p[0])).getTime();
+    }
+    
+    const fb = new Date(str).getTime();
+    return isNaN(fb) ? null : fb;
+}
+
+// Obtiene el rango de fechas del filtro superior
+function getRangoFechas() {
+    const val = document.getElementById('global-date-filter').value;
+    let start = null, end = null;
+    const now = new Date(); 
+    now.setHours(0,0,0,0); // Hoy a las 00:00:00
+
+    if(val === 'today') { start = now.getTime(); end = now.getTime() + 86400000; }
+    else if(val === 'yesterday') { start = now.getTime() - 86400000; end = now.getTime(); }
+    else if(val === '7days') { start = now.getTime() - (7 * 86400000); end = now.getTime() + 86400000; }
+    else if(val === '14days') { start = now.getTime() - (14 * 86400000); end = now.getTime() + 86400000; }
+    else if(val === '30days') { start = now.getTime() - (30 * 86400000); end = now.getTime() + 86400000; }
+    else if(val === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); end = now.getTime() + 86400000; }
+    else if(val === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(); end = new Date(now.getFullYear(), now.getMonth(), 0).getTime() + 86400000; }
+    else if(val === 'thisYear') { start = new Date(now.getFullYear(), 0, 1).getTime(); end = now.getTime() + 86400000; }
+    
+    return { start, end };
+}
+
+// ==========================================
+// 5. MOTOR DE PROCESAMIENTO Y RENDERIZADO
+// ==========================================
 function procesarYRenderizar() {
-    // 4.1 Leer los filtros actuales
-    const timezoneSelected = document.getElementById('global-timezone').value;
+    if (!window.AppData.raw.leads) return;
+
     const campaignSelected = document.getElementById('global-campaign-filter').value;
     const operatorSelected = document.getElementById('global-operator-filter').value;
-    
-    // (Nota: El filtro de fechas lo programaremos en detalle más adelante para la zona horaria)
-    
-    // 4.2 Filtrar la data según la Campaña seleccionada
-    let leadsFiltrados = window.AppData.raw.leads;
-    let contactadosFiltrados = window.AppData.raw.contactados;
-    let citasFiltradas = window.AppData.raw.citas;
-    let showsFiltrados = window.AppData.raw.shows;
+    const { start, end } = getRangoFechas();
 
-    if (campaignSelected !== 'all') {
-        leadsFiltrados = leadsFiltrados.filter(l => l['Campaña'] === campaignSelected);
-        contactadosFiltrados = contactadosFiltrados.filter(l => l['Campaña'] === campaignSelected);
-        citasFiltradas = citasFiltradas.filter(l => l['Campaña'] === campaignSelected);
-        showsFiltrados = showsFiltrados.filter(l => l['Campaña'] === campaignSelected);
-    }
+    // Filtro Universal (Evalúa Campaña, Operador y Fecha exacta)
+    const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
+        if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
+        if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
+        
+        if (start !== null && end !== null && colFecha && row[colFecha]) {
+            const rowTime = parseDateSpanish(row[colFecha]);
+            // Excluimos si la fecha no cae en el rango seleccionado
+            if (rowTime && (rowTime < start || rowTime >= end)) return false;
+        }
+        return true;
+    };
 
-    if (operatorSelected !== 'all') {
-        // Los leads no tienen operador en tu CSV, pero las citas sí
-        citasFiltradas = citasFiltradas.filter(c => c['Operador'] === operatorSelected);
-        showsFiltrados = showsFiltrados.filter(s => s['Operador'] === operatorSelected);
-    }
+    // 5.1 FILTRADO DE TUS HOJAS REALES
+    // Usamos los nombres EXACTOS de las columnas de tus CSVs
+    const leadsF = window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead'));
+    const contactadosF = window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra'));
+    const citasF = window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada'));
+    const showsF = window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
 
-    // 4.3 Calcular KPIs Matemáticos
-    const totalLeads = leadsFiltrados.length;
+    // 5.2 CÁLCULO DE KPIs
+    const totalLeads = leadsF.length;
     
-    // Para evitar duplicados en contactados, usamos un Set con los números de teléfono
-    const setContactados = new Set(contactadosFiltrados.map(c => c['Numero']));
+    // Deduplicación de Contactos (Usando el "Numero" como identificador único)
+    const setContactados = new Set(contactadosF.map(c => c['Numero']).filter(n => n));
     const totalContactados = setContactados.size;
     const contactRate = totalLeads > 0 ? (totalContactados / totalLeads) * 100 : 0;
 
-    const totalCitas = citasFiltradas.length;
+    const totalCitas = citasF.length;
     const bookingRate = totalLeads > 0 ? (totalCitas / totalLeads) * 100 : 0;
 
-    const totalShows = showsFiltrados.length;
+    const totalShows = showsF.length;
     const showRate = totalCitas > 0 ? (totalShows / totalCitas) * 100 : 0;
 
-    // 4.4 Inyectar en el HTML (Actualizar las tarjetas)
+    // 5.3 INYECCIÓN EN EL HTML (VISTA GENERAL)
     const kpiContainer = document.getElementById('kpi-container-general');
-    
-    kpiContainer.innerHTML = `
-        <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-            <div class="metric-title">Volumen de Leads</div>
-            <div class="metric-value">${totalLeads}</div>
-            <div class="metric-subtitle">CPL: $--.-- (Pendiente Meta Ads)</div>
-        </div>
+    if (kpiContainer) {
+        kpiContainer.innerHTML = `
+            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
+                <div class="metric-title">Volumen de Leads</div>
+                <div class="metric-value">${totalLeads}</div>
+                <div class="metric-subtitle">Evaluados en este rango</div>
+            </div>
 
-        <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
-            <div class="metric-title">Contact Rate</div>
-            <div class="metric-value">${contactRate.toFixed(1)}%</div>
-            <div class="metric-subtitle">${totalContactados} Leads Únicos Contactados</div>
-        </div>
+            <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
+                <div class="metric-title">Contact Rate</div>
+                <div class="metric-value">${contactRate.toFixed(1)}%</div>
+                <div class="metric-subtitle">${totalContactados} Leads Únicos Contactados</div>
+            </div>
 
-        <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-            <div class="metric-title">Citas Agendadas</div>
-            <div class="metric-value">${totalCitas}</div>
-            <div class="metric-subtitle">Booking Rate: ${bookingRate.toFixed(1)}%</div>
-        </div>
+            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
+                <div class="metric-title">Citas Agendadas</div>
+                <div class="metric-value">${totalCitas}</div>
+                <div class="metric-subtitle">Booking Rate: ${bookingRate.toFixed(1)}%</div>
+            </div>
 
-        <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
-            <div class="metric-title text-success">Shows Totales</div>
-            <div class="metric-value text-success">${totalShows}</div>
-            <div class="metric-subtitle">Asistencia: ${showRate.toFixed(1)}%</div>
-        </div>
-    `;
+            <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
+                <div class="metric-title text-success">Shows Totales</div>
+                <div class="metric-value text-success">${totalShows}</div>
+                <div class="metric-subtitle">Asistencia: ${showRate.toFixed(1)}%</div>
+            </div>
+            
+            <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
+                <div class="metric-title text-success">Ventas Cerradas</div>
+                <div class="metric-value text-success">0</div>
+                <div class="metric-subtitle">Win Rate: 0%</div>
+            </div>
 
-    // (La lógica del Speed to Lead y los gráficos las agregaremos en sus respectivos módulos)
+            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
+                <div class="metric-title">Coste x Cita Generada</div>
+                <div class="metric-value">$0.00</div>
+                <div class="metric-subtitle">Inversión: Pendiente Meta Ads</div>
+            </div>
+        `;
+    }
 }
 
-// 5. Escuchar cambios en los filtros para recalcular todo en tiempo real
+// 6. ESCUCHADORES DE EVENTOS
+document.getElementById('global-date-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-campaign-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-operator-filter').addEventListener('change', procesarYRenderizar);
+document.getElementById('global-timezone').addEventListener('change', procesarYRenderizar); // Detecta cambio de zona horaria
 document.getElementById('btn-refresh').addEventListener('click', loadAllData);
