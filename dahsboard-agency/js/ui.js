@@ -48,6 +48,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnSettings) {
         btnSettings.addEventListener('click', () => {
             modalSettings.style.display = 'flex';
+            
+            // NUEVO: Leer los datos guardados en memoria al abrir el modal
+            const metas = JSON.parse(localStorage.getItem('np_metas')) || {
+                ads: 3000, facturacion: 15000, citas: 100, stl: 5, llamadas: 50
+            };
+            
+            document.getElementById('meta-ads').value = metas.ads;
+            document.getElementById('meta-facturacion').value = metas.facturacion;
+            document.getElementById('meta-citas').value = metas.citas;
+            document.getElementById('meta-stl').value = metas.stl;
+            document.getElementById('meta-llamadas-agente').value = metas.llamadas;
         });
     }
 
@@ -59,10 +70,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (saveSettings) {
         saveSettings.addEventListener('click', () => {
+            // NUEVO: Capturar los valores escritos por el usuario y guardarlos
+            const metas = {
+                ads: parseFloat(document.getElementById('meta-ads').value) || 0,
+                facturacion: parseFloat(document.getElementById('meta-facturacion').value) || 0,
+                citas: parseInt(document.getElementById('meta-citas').value) || 0,
+                stl: parseInt(document.getElementById('meta-stl').value) || 0,
+                llamadas: parseInt(document.getElementById('meta-llamadas-agente').value) || 0
+            };
+            
+            localStorage.setItem('np_metas', JSON.stringify(metas));
             modalSettings.style.display = 'none';
             
-            // Más adelante, aquí guardaremos las metas en localStorage
-            // y obligaremos a app.js a recalcular los datos.
+            // Recalcular todo el dashboard instantáneamente
             if (typeof procesarYRenderizar === 'function') {
                 procesarYRenderizar();
             }
