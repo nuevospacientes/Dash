@@ -120,6 +120,24 @@
                 </div>
             </div>
 
+            <div id="modal-error" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-color: var(--accent-danger);">
+                    <div class="modal-header">
+                        <h2 style="color: var(--accent-danger);"><i class="fa-solid fa-triangle-exclamation"></i> Alerta del Sistema</h2>
+                        <button id="close-error-modal" class="close-btn">&times;</button>
+                    </div>
+                    <div id="error-details" style="margin-top: 15px;">
+                        <p><strong style="color: var(--text-main);">Problema:</strong> <span id="error-msg" style="color: var(--text-muted);">...</span></p>
+                        <p style="margin-top: 10px;"><strong style="color: var(--text-main);">Dónde revisar:</strong> <span id="error-location" style="color: var(--text-muted);">...</span></p>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: rgba(233, 61, 61, 0.1); border-radius: 8px; border: 1px solid rgba(233, 61, 61, 0.3);">
+                            <strong style="color: var(--accent-danger);">💡 Solución sugerida:</strong>
+                            <p id="error-fix" style="font-size: 0.85rem; color: var(--text-main); margin-top: 5px;">...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <section id="view-general" class="view-section active">
                 
                 <div class="grid-cards" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
