@@ -1,1 +1,234 @@
-PI
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevos Pacientes | Analytics Dashboard</title>
+    
+    <link rel="stylesheet" href="./css/styles.css">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <div id="login-screen" class="login-overlay">
+        <div class="login-card">
+            <h2 class="login-logo">Nuevos <span>Pacientes</span></h2>
+            <p class="login-subtitle">Ingresa tus credenciales para acceder al panel.</p>
+            
+            <div class="input-group">
+                <label for="login-email">Usuario / Correo</label>
+                <input type="text" id="login-email" placeholder="ejemplo@agencia.com" autocomplete="off">
+            </div>
+            
+            <div class="input-group">
+                <label for="login-password">Contraseña</label>
+                <input type="password" id="login-password" placeholder="••••••••">
+            </div>
+            
+            <div id="login-error" class="error-message" style="display: none;">
+                <i class="fa-solid fa-triangle-exclamation"></i> Credenciales incorrectas.
+            </div>
+            
+            <button id="btn-login" class="btn-primary w-full">Acceder al Sistema</button>
+        </div>
+    </div>
+
+    <div id="app-dashboard" style="display: none;">
+        
+        <header class="top-bar">
+            <div class="brand">
+                <h1>Nuevos <span>Pacientes</span></h1>
+                <span id="welcome-message" class="user-greeting">Bienvenido, Cargando...</span>
+            </div>
+            
+            <div class="global-controls">
+                <select id="global-date-filter" class="filter-select">
+                    <option value="thisMonth" selected>Este Mes</option>
+                    <option value="today">Hoy</option>
+                    <option value="yesterday">Ayer</option>
+                    <option value="7days">Últimos 7 Días</option>
+                    <option value="14days">Últimos 14 Días</option>
+                    <option value="30days">Últimos 30 Días</option>
+                    <option value="lastMonth">Mes Pasado</option>
+                    <option value="thisYear">Este Año</option>
+                    <option value="all">Histórico Completo</option>
+                </select>
+
+                <select id="global-operator-filter" class="filter-select">
+                    <option value="all" selected>Todos los Operadores</option>
+                </select>
+
+                <select id="global-campaign-filter" class="filter-select">
+                    <option value="all" selected>Todas las Campañas</option>
+                </select>
+
+                <select id="global-timezone" class="filter-select">
+                    <option value="America/Mexico_City" selected>🇲🇽 Hora Central (MX)</option>
+                    <option value="America/Santo_Domingo">🇩🇴 Rep. Dominicana</option>
+                    <option value="America/Lima">🇵🇪 Perú / Colombia</option>
+                    <option value="America/Costa_Rica">🇨🇷 Costa Rica</option>
+                </select>
+
+                <button id="btn-refresh" class="icon-btn" title="Sincronizar Datos"><i class="fa-solid fa-rotate-right"></i></button>
+                <button id="btn-settings" class="icon-btn" title="Configurar Metas"><i class="fa-solid fa-sliders"></i></button>
+                <button id="btn-theme-toggle" class="icon-btn" title="Cambiar Tema"><i class="fa-solid fa-moon"></i></button>
+            </div>
+        </header>
+
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-target="view-general"><i class="fa-solid fa-chart-pie"></i> Vista General</button>
+            <button class="tab-btn" data-target="view-tracker"><i class="fa-solid fa-headset"></i> Call Tracker</button>
+            <button class="tab-btn" data-target="view-ads"><i class="fa-solid fa-bullhorn"></i> Buying Media Guide</button>
+            <button class="tab-btn" data-target="view-search"><i class="fa-solid fa-magnifying-glass"></i> Detective de Leads</button>
+        </nav>
+
+        <main class="main-content">
+            
+            <div id="modal-settings" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-gear"></i> Configuración de Metas</h2>
+                        <button id="close-settings" class="close-btn">&times;</button>
+                    </div>
+                    <p class="modal-desc">Establece las métricas objetivo del mes. Se guardarán localmente en tu navegador.</p>
+                    
+                    <div class="input-group">
+                        <label>Presupuesto Ads Mensual ($)</label>
+                        <input type="number" id="meta-ads" value="3000">
+                    </div>
+                    <div class="input-group">
+                        <label>Meta de Citas / Agendas</label>
+                        <input type="number" id="meta-citas" value="100">
+                    </div>
+                    <div class="input-group">
+                        <label>Speed to Lead Objetivo (Minutos)</label>
+                        <input type="number" id="meta-stl" value="5">
+                    </div>
+                    <button id="save-settings" class="btn-primary w-full">Guardar y Aplicar Cambios</button>
+                </div>
+            </div>
+
+            <section id="view-general" class="view-section active">
+                <h2 class="section-title">Vista General del Embudo</h2>
+                
+                <div id="kpi-container-general" class="grid-cards">
+                    
+                    <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 5px;">Volumen de Leads</div>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--text-main);">0</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">CPL: $0.00</div>
+                    </div>
+
+                    <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 5px;">Contact Rate</div>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--text-main);">0%</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">0 Leads Contactados</div>
+                    </div>
+
+                    <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
+                        <div style="font-size: 0.8rem; color: var(--accent-success); text-transform: uppercase; font-weight: 700; margin-bottom: 5px;">Citas Agendadas</div>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--accent-success);">0</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">Booking Rate: 0%</div>
+                    </div>
+
+                    <div class="kpi-card" style="border-left: 4px solid var(--accent-success);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 5px;">Shows Totales</div>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--text-main);">0</div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">Asistencia: 0%</div>
+                    </div>
+
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                    <div class="kpi-card" style="min-height: 350px; display: flex; justify-content: center; align-items: center; color: var(--text-muted);">
+                        [Área para Gráfico de Tendencia Diaria Chart.js]
+                    </div>
+                    <div class="kpi-card" style="min-height: 350px; display: flex; justify-content: center; align-items: center; color: var(--text-muted);">
+                        [Área para Dona de Embudos Chart.js]
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-tracker" class="view-section">
+                <h2 class="section-title">Rendimiento Operativo y Ranking</h2>
+                <div class="kpi-card" style="min-height: 400px; display: flex; justify-content: center; align-items: center; color: var(--text-muted);">
+                    [Aquí inyectaremos la Tabla Leaderboard de Operadores y métricas Speed To Lead]
+                </div>
+            </section>
+
+            <section id="view-ads" class="view-section">
+                <h2 class="section-title">Control Financiero (Ads)</h2>
+                <div class="kpi-card" style="min-height: 400px; display: flex; justify-content: center; align-items: center; color: var(--text-muted);">
+                    [Aquí inyectaremos la tabla estilo Ads Manager conectada a Meta]
+                </div>
+            </section>
+
+            <section id="view-search" class="view-section">
+                <div style="max-width: 800px; margin: 0 auto; text-align: center;">
+                    <h2 class="section-title" style="font-size: 1.8rem; color: var(--brand-primary); margin-bottom: 5px;">🕵️ Detective de Leads</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 30px;">Busca el historial completo de cualquier paciente en el embudo.</p>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 30px;">
+                        <input type="text" placeholder="Ingresa nombre, correo o teléfono..." style="flex: 1; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 1.1rem;">
+                        <button class="btn-primary">Buscar</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // 1. Simular Login Exitoso
+        document.getElementById('btn-login').addEventListener('click', () => {
+            const email = document.getElementById('login-email').value;
+            if(email !== "") {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-dashboard').style.display = 'block';
+                document.getElementById('welcome-message').innerText = "Bienvenido, " + email.split('@')[0];
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+            }
+        });
+
+        // 2. Cambiar Modo Claro / Oscuro
+        document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            document.querySelector('#btn-theme-toggle i').className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        });
+
+        // 3. Navegación de Pestañas
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+                
+                // Si haces clic en el icono dentro del botón, aseguramos que seleccione el botón
+                const targetBtn = e.target.closest('.tab-btn');
+                targetBtn.classList.add('active');
+                document.getElementById(targetBtn.getAttribute('data-target')).classList.add('active');
+            });
+        });
+
+        // 4. Modal de Configuraciones
+        document.getElementById('btn-settings').addEventListener('click', () => {
+            document.getElementById('modal-settings').style.display = 'flex';
+        });
+        document.getElementById('close-settings').addEventListener('click', () => {
+            document.getElementById('modal-settings').style.display = 'none';
+        });
+        document.getElementById('save-settings').addEventListener('click', () => {
+            document.getElementById('modal-settings').style.display = 'none';
+            alert("Metas guardadas localmente (Simulación)");
+        });
+    </script>
+</body>
+</html>
