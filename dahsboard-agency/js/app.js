@@ -156,10 +156,27 @@ function parseDateSpanish(dateStr) {
         if (p.length >= 3) return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
     }
 
-    // 4. Evaluamos el formato corto con guiones ("7-jul")
+    // 4. Formato corto con guiones ("7-jul")
     if (str.includes('-') && str.split('-').length === 2) {
         const p = str.split('-');
         let year = new Date().getFullYear(); 
+        
+        // Extraemos el año de la columna "Cita Programada en" si existe en la misma fila
+        if (row && row['Cita Programada en']) {
+            let strProg = String(row['Cita Programada en']).trim().toLowerCase();
+            if (strProg.includes(' de ')) {
+                let pProg = strProg.split(' de ');
+                if (pProg.length === 3) year = parseInt(pProg[2]);
+            } else if (strProg.includes('/')) {
+                let pProg = strProg.split('/');
+                if (pProg.length >= 3) year = parseInt(pProg[2]);
+            }
+        } else {
+            // Fallback de seguridad (Si no hay columna, y es del futuro, restamos 1 año)
+            let tempDate = new Date(year, meses[p[1]], parseInt(p[0]));
+            if (tempDate > new Date()) year--;
+        }
+
         return new Date(year, meses[p[1]], parseInt(p[0])).getTime();
     }
     
@@ -213,12 +230,13 @@ function procesarYRenderizar() {
         if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
         if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
         
-        // CORRECCIÓN: Lógica de exclusión estricta (Fail-Closed)
+       // CORRECCIÓN: Lógica de exclusión estricta (Fail-Closed)
         if (start !== null && end !== null && colFecha) {
             // 1. Si la celda está vacía, rechazamos la fila
             if (!row[colFecha]) return false;
             
-            const rowTime = parseDateSpanish(row[colFecha]);
+            // PASAMOS ROW AQUÍ PARA QUE LA FUNCIÓN TENGA EL CONTEXTO
+            const rowTime = parseDateSpanish(row[colFecha], row); 
             
             // 2. Si la celda tiene texto pero no es una fecha entendible, la rechazamos
             if (!rowTime) return false; 
