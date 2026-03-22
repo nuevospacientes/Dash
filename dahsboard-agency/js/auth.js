@@ -73,12 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Función para ocultar la pantalla negra y mostrar el Dashboard
 function iniciarDashboard(nombreUsuario) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-dashboard').style.display = 'block';
     document.getElementById('welcome-message').innerText = `Bienvenido, ${nombreUsuario}`;
     
-    // Aquí es donde dispararemos la descarga de los otros 7 archivos CSV
-    // loadAllData(); <-- (Lo programaremos en app.js)
+    // Dispara la descarga de los 7 CSVs de datos
+    if(typeof loadAllData === 'function') {
+        loadAllData(); 
+    }
 }
