@@ -132,8 +132,11 @@ function poblarFiltros() {
 // Convierte los 3 formatos de tus CSVs a Tiempo Real (Milisegundos)
 function parseDateSpanish(dateStr) {
     if (!dateStr) return null;
-    let str = dateStr.toString().toLowerCase().trim();
+    let str = String(dateStr).trim().toLowerCase();
     
+    // CORRECCIÓN: Cortar cualquier hora pegada a la fecha (Ej: "21/03/2026 14:18" -> "21/03/2026")
+    str = str.split(' ')[0];
+
     const meses = {
         'ene': 0, 'enero': 0, 'feb': 1, 'febrero': 1, 'mar': 2, 'marzo': 2,
         'abr': 3, 'abril': 3, 'may': 4, 'mayo': 4, 'jun': 5, 'junio': 5,
@@ -141,22 +144,19 @@ function parseDateSpanish(dateStr) {
         'oct': 9, 'octubre': 9, 'nov': 10, 'noviembre': 10, 'dic': 11, 'diciembre': 11
     };
 
-    // Formato 1: 21/3/2026
     if (str.includes('/')) {
         const p = str.split('/');
-        if (p.length >= 3) return new Date(p[2], p[1] - 1, p[0]).getTime();
+        if (p.length >= 3) return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
     }
     
-    // Formato 2: 21 de marzo de 2026
     if (str.includes(' de ')) {
         const p = str.split(' de ');
         if (p.length === 3) return new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
     }
 
-    // Formato 3: 7-jul (Asumimos 2026 por defecto si no hay año)
     if (str.includes('-') && str.split('-').length === 2) {
         const p = str.split('-');
-        let year = 2026; 
+        let year = new Date().getFullYear(); 
         return new Date(year, meses[p[1]], parseInt(p[0])).getTime();
     }
     
@@ -243,7 +243,8 @@ function procesarYRenderizar() {
         citas: citasF,
         shows: showsF,
         noShows: noShowsF,
-        cancelados: canceladosF
+        cancelados: canceladosF,
+        dateRange: { start, end } // <--- NUEVO: Mandamos el límite de fechas a los gráficos
     };
 
     // 5.2 LLAMAR A LOS MÓDULOS EXTERNOS PARA QUE DIBUJEN LA INTERFAZ
