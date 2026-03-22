@@ -133,9 +133,6 @@ function poblarFiltros() {
 function parseDateSpanish(dateStr) {
     if (!dateStr) return null;
     let str = String(dateStr).trim().toLowerCase();
-    
-    // CORRECCIÓN: Cortar cualquier hora pegada a la fecha (Ej: "21/03/2026 14:18" -> "21/03/2026")
-    str = str.split(' ')[0];
 
     const meses = {
         'ene': 0, 'enero': 0, 'feb': 1, 'febrero': 1, 'mar': 2, 'marzo': 2,
@@ -144,16 +141,22 @@ function parseDateSpanish(dateStr) {
         'oct': 9, 'octubre': 9, 'nov': 10, 'noviembre': 10, 'dic': 11, 'diciembre': 11
     };
 
-    if (str.includes('/')) {
-        const p = str.split('/');
-        if (p.length >= 3) return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
-    }
-    
+    // 1. Primero salvamos el formato de la hoja de Shows ("21 de marzo de 2026")
     if (str.includes(' de ')) {
         const p = str.split(' de ');
         if (p.length === 3) return new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
     }
 
+    // 2. Si NO es el formato de Shows, le quitamos la posible hora pegada (Ej: "21/03/2026 14:18" -> "21/03/2026")
+    str = str.split(' ')[0];
+
+    // 3. Evaluamos el formato con barras ("21/03/2026")
+    if (str.includes('/')) {
+        const p = str.split('/');
+        if (p.length >= 3) return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
+    }
+
+    // 4. Evaluamos el formato corto con guiones ("7-jul")
     if (str.includes('-') && str.split('-').length === 2) {
         const p = str.split('-');
         let year = new Date().getFullYear(); 
