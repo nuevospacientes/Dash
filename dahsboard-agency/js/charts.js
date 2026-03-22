@@ -3,40 +3,72 @@
    ========================================== */
 
 let chartTendencia = null;
-let chartDona = null;
-let chartHoras = null;
+let chartHoras = null; // Eliminamos la variable chartDona
 
 // Configuración global para colores oscuros
 Chart.defaults.color = '#BDBDBD';
 Chart.defaults.font.family = "'Inter', sans-serif";
 
 function renderizarGraficos(dataFiltrada) {
-    const leads = dataFiltrada.leads;
-    const contactados = dataFiltrada.contactados;
-    const citas = dataFiltrada.citas;
+    // Extraemos todas las tablas procesadas
+    const leads = dataFiltrada.leads || [];
+    const contactados = dataFiltrada.contactados || [];
+    const llamadas = dataFiltrada.llamadas || []; 
+    const citas = dataFiltrada.citas || [];
+    const shows = dataFiltrada.shows || [];
 
-    // 1. Agrupar por Fechas para Líneas (Tendencia)
+    // ==========================================
+    // 1. TENDENCIA DIARIA DEL EMBUDO (6 Variables)
+    // ==========================================
     let timeline = {};
     
-    const agruparPorFecha = (array, propFecha, key) => {
+    // Función optimizada para agrupar fechas evitando el error de "gráfico infinito"
+    const agruparPorFecha = (array, propFecha, key, filterFn = null) => {
+        if (!array) return;
         array.forEach(item => {
-            let d = parseDateSpanish(item[propFecha]);
-            if (d) {
+            if (filterFn && !filterFn(item)) return;
+            
+            let rawDate = item[propFecha];
+            if (!rawDate) return;
+
+            // Usamos tu función parseDateSpanish para estandarizar
+            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate) : new Date(rawDate);
+            
+            // Verificación estricta: solo fechas válidas entran al gráfico
+            if (d && !isNaN(new Date(d).getTime())) {
                 let fechaStr = new Date(d).toISOString().split('T')[0];
-                if (!timeline[fechaStr]) timeline[fechaStr] = { leads: 0, citas: 0 };
+                
+                if (!timeline[fechaStr]) {
+                    timeline[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0 };
+                }
                 timeline[fechaStr][key]++;
             }
         });
     };
 
+    // Mapeo de eventos a sus respectivas fechas de ocurrencia
     agruparPorFecha(leads, 'Fecha entrada lead', 'leads');
+    agruparPorFecha(contactados, 'Fecha 1er llamada', 'contactados');
+    agruparPorFecha(llamadas, 'Fecha last call', 'llamadas'); 
     agruparPorFecha(citas, 'Cita generada', 'citas');
+    agruparPorFecha(shows, 'Fecha Visita', 'shows');
+    
+    // Lógica de Ventas: Shows que tienen Depósito (ignora celdas vacías o "Sin Deposito")
+    agruparPorFecha(shows, 'Fecha Visita', 'ventas', (item) => {
+        const dep = (item['Deposito'] || '').toLowerCase().trim();
+        return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
+    });
 
+    // Ordenar cronológicamente para mantener el eje X secuencial
     let labelsFechas = Object.keys(timeline).sort();
+    
     let dataLeads = labelsFechas.map(f => timeline[f].leads);
+    let dataContactados = labelsFechas.map(f => timeline[f].contactados);
+    let dataLlamadas = labelsFechas.map(f => timeline[f].llamadas);
     let dataCitas = labelsFechas.map(f => timeline[f].citas);
+    let dataShows = labelsFechas.map(f => timeline[f].shows);
+    let dataVentas = labelsFechas.map(f => timeline[f].ventas);
 
-    // 2. Dibujar Gráfico de Tendencia
     const ctxTendencia = document.getElementById('chart-tendencia');
     if (ctxTendencia) {
         if (chartTendencia) chartTendencia.destroy();
@@ -45,33 +77,69 @@ function renderizarGraficos(dataFiltrada) {
             data: {
                 labels: labelsFechas,
                 datasets: [
-                    { label: 'Leads', data: dataLeads, borderColor: '#3b6bfa', tension: 0.4 },
-                    { label: 'Citas', data: dataCitas, borderColor: '#37ca37', tension: 0.4 }
+                    { label: 'Leads Generados', data: dataLeads, borderColor: '#3b6bfa', backgroundColor: '#3b6bfa', tension: 0.4 },
+                    { label: 'Leads Contactados', data: dataContactados, borderColor: '#f6ad55', backgroundColor: '#f6ad55', tension: 0.4 },
+                    { label: 'Llamadas Conectadas', data: dataLlamadas, borderColor: '#9f7aea', backgroundColor: '#9f7aea', tension: 0.4 },
+                    { label: 'Citas Generadas', data: dataCitas, borderColor: '#37ca37', backgroundColor: '#37ca37', tension: 0.4 },
+                    { label: 'Shows', data: dataShows, borderColor: '#fbbf24', backgroundColor: '#fbbf24', tension: 0.4 },
+                    { label: 'Ventas Cerradas', data: dataVentas, borderColor: '#e93d3d', backgroundColor: '#e93d3d', tension: 0.4, borderWidth: 3 }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
         });
     }
 
-    // 3. Dibujar Gráfico de Dona (Embudo Global)
-    const ctxDona = document.getElementById('chart-dona-embudo');
-    if (ctxDona) {
-        if (chartDona) chartDona.destroy();
-        chartDona = new Chart(ctxDona, {
-            type: 'doughnut',
+    // ==========================================
+    // 2. DINÁMICA DIARIA (Llamadas por Hora)
+    // ==========================================
+    const ctxHoras = document.getElementById('chart-horas');
+    if (ctxHoras) {
+        // Creamos 24 "cubetas" para las horas del día (0 a 23)
+        let distribucionHoras = new Array(24).fill(0);
+        
+        contactados.forEach(item => {
+            let horaStr = item['Hora 1er llamada'];
+            if (horaStr) {
+                let horaNum = parseInt(horaStr.split(':')[0]); // Extrae la hora "14:23:00" -> 14
+                if (!isNaN(horaNum) && horaNum >= 0 && horaNum <= 23) {
+                    distribucionHoras[horaNum]++;
+                }
+            }
+        });
+
+        let labelsHoras = Array.from({length: 24}, (_, i) => `${i}:00`);
+
+        if (chartHoras) chartHoras.destroy();
+        chartHoras = new Chart(ctxHoras, {
+            type: 'bar',
             data: {
-                labels: ['Leads Sin Contactar', 'Contactados (Sin Cita)', 'Citas Agendadas'],
+                labels: labelsHoras,
                 datasets: [{
-                    data: [
-                        leads.length - contactados.length, 
-                        contactados.length - citas.length, 
-                        citas.length
-                    ],
-                    backgroundColor: ['#e93d3d', '#f6ad55', '#37ca37'],
-                    borderWidth: 0
+                    label: 'Volumen de 1er Contacto',
+                    data: distribucionHoras,
+                    backgroundColor: 'rgba(59, 107, 250, 0.4)',
+                    borderColor: '#3b6bfa',
+                    borderWidth: 1,
+                    borderRadius: 4
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '75%' }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                }
+            }
         });
     }
 }
