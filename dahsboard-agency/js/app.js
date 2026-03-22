@@ -196,8 +196,6 @@ function getRangoFechas() {
     else if(val === '7days') { start = now.getTime() - (7 * 86400000); end = now.getTime() + 86400000; }
     else if(val === '14days') { start = now.getTime() - (14 * 86400000); end = now.getTime() + 86400000; }
     else if(val === '30days') { start = now.getTime() - (30 * 86400000); end = now.getTime() + 86400000; }
-    
-    // CORRECCIÓN: "Este Mes" ahora abarca hasta el día 1 del mes SIGUIENTE para incluir todo
     else if(val === 'thisMonth') { 
         start = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); 
         end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime(); 
@@ -206,10 +204,22 @@ function getRangoFechas() {
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(); 
         end = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); 
     }
-    // CORRECCIÓN: "Este Año" ahora abarca los 12 meses completos
     else if(val === 'thisYear') { 
         start = new Date(now.getFullYear(), 0, 1).getTime(); 
         end = new Date(now.getFullYear() + 1, 0, 1).getTime(); 
+    }
+    // NUEVA LÓGICA PARA FECHAS PERSONALIZADAS
+    else if(val === 'custom') {
+        const customStart = document.getElementById('custom-start-date').value;
+        const customEnd = document.getElementById('custom-end-date').value;
+        
+        if (customStart && customEnd) {
+            const [sy, sm, sd] = customStart.split('-');
+            const [ey, em, ed] = customEnd.split('-');
+            // Creamos las fechas exactas asegurando que tome el día entero del final
+            start = new Date(sy, sm - 1, sd).getTime();
+            end = new Date(ey, em - 1, ed).getTime() + 86400000; 
+        }
     }
     
     return { start, end };
@@ -275,7 +285,24 @@ function procesarYRenderizar() {
 }
 
 // 6. ESCUCHADORES DE EVENTOS GLOBALES
-document.getElementById('global-date-filter').addEventListener('change', procesarYRenderizar);
+
+// Control especial para el filtro de fechas
+document.getElementById('global-date-filter').addEventListener('change', function(e) {
+    const customContainer = document.getElementById('custom-date-container');
+    if (e.target.value === 'custom') {
+        // Mostrar los calendarios y no hacer nada hasta que den clic en "Aplicar"
+        customContainer.style.display = 'flex';
+    } else {
+        // Ocultar los calendarios y procesar normalmente
+        customContainer.style.display = 'none';
+        procesarYRenderizar();
+    }
+});
+
+// Botón "Aplicar" de las fechas personalizadas
+document.getElementById('btn-apply-custom-date').addEventListener('click', procesarYRenderizar);
+
+// Filtros normales
 document.getElementById('global-campaign-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-operator-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-timezone').addEventListener('change', procesarYRenderizar);
