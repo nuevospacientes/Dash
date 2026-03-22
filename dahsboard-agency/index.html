@@ -321,20 +321,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <script>
-        // 1. Simular Login Exitoso
-        document.getElementById('btn-login').addEventListener('click', () => {
-            const email = document.getElementById('login-email').value;
-            if(email !== "") {
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('app-dashboard').style.display = 'block';
-                document.getElementById('welcome-message').innerText = "Bienvenido, " + email.split('@')[0];
-            } else {
-                document.getElementById('login-error').style.display = 'block';
-            }
-        });
+    <script src="./js/config.js"></script>
+    <script src="./js/auth.js"></script>
 
-        // 2. Cambiar Modo Claro / Oscuro
+    <script>
+        // Cambiar Modo Claro / Oscuro
         document.getElementById('btn-theme-toggle').addEventListener('click', () => {
             const html = document.documentElement;
             const currentTheme = html.getAttribute('data-theme');
@@ -343,29 +334,20 @@
             document.querySelector('#btn-theme-toggle i').className = newTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
         });
 
-        // 3. Navegación de Pestañas
+        // Navegación de Pestañas
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                 document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-                
                 const targetBtn = e.target.closest('.tab-btn');
                 targetBtn.classList.add('active');
                 document.getElementById(targetBtn.getAttribute('data-target')).classList.add('active');
             });
         });
 
-        // 4. Modal de Configuraciones
-        document.getElementById('btn-settings').addEventListener('click', () => {
-            document.getElementById('modal-settings').style.display = 'flex';
-        });
-        document.getElementById('close-settings').addEventListener('click', () => {
-            document.getElementById('modal-settings').style.display = 'none';
-        });
-        document.getElementById('save-settings').addEventListener('click', () => {
-            document.getElementById('modal-settings').style.display = 'none';
-            alert("Metas guardadas localmente.");
-        });
+        // Modal de Configuraciones
+        document.getElementById('btn-settings').addEventListener('click', () => document.getElementById('modal-settings').style.display = 'flex');
+        document.getElementById('close-settings').addEventListener('click', () => document.getElementById('modal-settings').style.display = 'none');
     </script>
 </body>
 </html>
