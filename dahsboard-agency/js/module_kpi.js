@@ -1,93 +1,101 @@
 /* ==========================================
-   MÓDULO 1: VISTA GENERAL Y KPIs
+   MÓDULO DE KPIs (VISTA GENERAL)
    ========================================== */
 
+// Valor estimado por venta para calcular la facturación (Modifícalo según el High-Ticket de la clínica)
+const TICKET_PROMEDIO = 500; 
+
 function renderizarVistaGeneral(dataFiltrada) {
-    const leads = dataFiltrada.leads;
-    const contactados = dataFiltrada.contactados;
-    const citas = dataFiltrada.citas;
-    const shows = dataFiltrada.shows;
+    // 1. Conteo Base de las tablas
+    const tLeads = dataFiltrada.leads.length;
+    const tContactados = dataFiltrada.contactados.length;
+    const tCitas = dataFiltrada.citas.length;
+    const tShows = dataFiltrada.shows.length;
+    
+    // 2. Filtro de Ventas Reales (Shows que tienen un depósito registrado)
+    const ventas = dataFiltrada.shows.filter(item => {
+        const dep = (item['Deposito'] || '').toLowerCase().trim();
+        return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
+    });
+    const tVentas = ventas.length;
 
-    // 1. Cálculos de Embudo
-    const totalLeads = leads.length;
-    const setContactados = new Set(contactados.map(c => c['Numero']).filter(n => n));
-    const totalContactados = setContactados.size;
-    const totalCitas = citas.length;
-    const totalShows = shows.length;
+    // 3. Tasas de Conversión (%)
+    const contactRate = tLeads > 0 ? ((tContactados / tLeads) * 100).toFixed(1) : 0;
+    const bookingRate = tLeads > 0 ? ((tCitas / tLeads) * 100).toFixed(1) : 0;
+    const showRate = tCitas > 0 ? ((tShows / tCitas) * 100).toFixed(1) : 0;
+    const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
-    const contactRate = totalLeads > 0 ? (totalContactados / totalLeads) * 100 : 0;
-    const bookingRate = totalLeads > 0 ? (totalCitas / totalLeads) * 100 : 0;
-    const showRate = totalCitas > 0 ? (totalShows / totalCitas) * 100 : 0;
+    // 4. Obtener Metas configuradas por el usuario (o valores por defecto)
+    const metas = JSON.parse(localStorage.getItem('np_metas')) || {
+        ads: 3000, facturacion: 15000, citas: 100
+    };
 
-    // 2. Inyectar KPIs Principales
-    const kpiContainer = document.getElementById('kpi-container-general');
-    if (kpiContainer) {
-        kpiContainer.innerHTML = `
-            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-                <div class="metric-title">Volumen de Leads</div>
-                <div class="metric-value">${totalLeads}</div>
-                <div class="metric-subtitle">Evaluados en este rango</div>
-            </div>
-            <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
-                <div class="metric-title">Contact Rate</div>
-                <div class="metric-value">${contactRate.toFixed(1)}%</div>
-                <div class="metric-subtitle">${totalContactados} Leads Contactados</div>
-            </div>
-            <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-                <div class="metric-title">Citas Agendadas</div>
-                <div class="metric-value">${totalCitas}</div>
-                <div class="metric-subtitle">Booking Rate: ${bookingRate.toFixed(1)}%</div>
-            </div>
-            <div class="kpi-card" style="border-left: 4px solid var(--accent-success); background: linear-gradient(90deg, rgba(48,174,185,0.05), transparent);">
-                <div class="metric-title text-success">Shows Totales</div>
-                <div class="metric-value text-success">${totalShows}</div>
-                <div class="metric-subtitle">Asistencia: ${showRate.toFixed(1)}%</div>
-            </div>
-        `;
+    // 5. Cálculos Financieros Estimados (Usando el presupuesto mensual objetivo)
+    const cpl = tLeads > 0 ? (metas.ads / tLeads).toFixed(2) : 0;
+    const cpa = tCitas > 0 ? (metas.ads / tCitas).toFixed(2) : 0;
+    const facturacionActual = tVentas * TICKET_PROMEDIO;
+
+    // ==========================================
+    // RENDERIZADO EN PANTALLA
+    // ==========================================
+
+    // A. Actualizar las 6 tarjetas de Rendimiento del Embudo
+    const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
+    if(kpiCards.length >= 6) {
+        kpiCards[0].querySelector('.metric-value').innerText = tLeads;
+        kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
+        
+        kpiCards[1].querySelector('.metric-value').innerText = `${contactRate}%`;
+        kpiCards[1].querySelector('.metric-subtitle').innerText = `${tContactados} Leads Contactados`;
+        
+        kpiCards[2].querySelector('.metric-value').innerText = tCitas;
+        kpiCards[2].querySelector('.metric-subtitle').innerText = `Booking Rate: ${bookingRate}%`;
+        
+        kpiCards[3].querySelector('.metric-value').innerText = tShows;
+        kpiCards[3].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
+        
+        kpiCards[4].querySelector('.metric-value').innerText = tVentas;
+        kpiCards[4].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
+        
+        kpiCards[5].querySelector('.metric-value').innerText = `$${cpa}`;
+        kpiCards[5].querySelector('.metric-subtitle').innerText = `Presupuesto Ref: $${metas.ads}`;
     }
 
-    // 3. Cálculo de Distribución de Pagos (Desde la hoja Citas/Shows)
-    let pagos = { transferencia: 0, tarjeta: 0, efectivo: 0, financiamiento: 0 };
-    let totalPagos = 0;
+    // B. Actualizar Barras de Progreso (Top de la pantalla)
+    const progFacturacion = metas.facturacion > 0 ? (facturacionActual / metas.facturacion) * 100 : 0;
+    const progCitas = metas.citas > 0 ? (tCitas / metas.citas) * 100 : 0;
 
-    citas.forEach(cita => {
-        let dep = (cita['Deposito'] || '').toLowerCase();
-        if (!dep || dep === 'sin deposito') return;
+    const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
+    if(topCards.length >= 2) {
+        // Barra Facturación
+        topCards[0].querySelector('.metric-value').innerText = `$${facturacionActual.toLocaleString('en-US')}`;
+        topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progFacturacion, 100)}%`;
         
-        if (dep.includes('transferencia')) pagos.transferencia++;
-        else if (dep.includes('tarjeta') || dep.includes('link')) pagos.tarjeta++;
-        else if (dep.includes('efectivo')) pagos.efectivo++;
-        else pagos.financiamiento++; // Otros
-        
-        totalPagos++;
+        // Barra Citas
+        topCards[1].querySelector('.metric-value').innerText = `${tCitas} / ${metas.citas}`;
+        topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
+    }
+
+    // C. Distribución de Métodos de Pago
+    let pagos = { transferencia: 0, tarjeta: 0, efectivo: 0, financiamiento: 0 };
+    ventas.forEach(v => {
+        let metodo = (v['Deposito'] || '').toLowerCase();
+        if (metodo.includes('transferencia')) pagos.transferencia++;
+        else if (metodo.includes('tarjeta') || metodo.includes('link')) pagos.tarjeta++;
+        else if (metodo.includes('efectivo')) pagos.efectivo++;
+        else if (metodo.includes('financiamiento') || metodo.includes('cuotas')) pagos.financiamiento++;
+        else pagos.transferencia++; // Si ponen "Otro", lo sumamos a transferencia por defecto
     });
 
-    // 4. Inyectar Pagos
-    const getPorcentaje = (val) => totalPagos > 0 ? ((val / totalPagos) * 100).toFixed(1) : 0;
-    
-    const payContainer = document.getElementById('payment-distribution-container');
-    if (payContainer) {
-        payContainer.innerHTML = `
-            <div class="kpi-card">
-                <div class="metric-title">Transferencia</div>
-                <div class="metric-value text-success">${pagos.transferencia}</div>
-                <div class="metric-subtitle">${getPorcentaje(pagos.transferencia)}% del total</div>
-            </div>
-            <div class="kpi-card">
-                <div class="metric-title">Tarjeta / Link</div>
-                <div class="metric-value text-success">${pagos.tarjeta}</div>
-                <div class="metric-subtitle">${getPorcentaje(pagos.tarjeta)}% del total</div>
-            </div>
-            <div class="kpi-card">
-                <div class="metric-title">Efectivo</div>
-                <div class="metric-value text-success">${pagos.efectivo}</div>
-                <div class="metric-subtitle">${getPorcentaje(pagos.efectivo)}% del total</div>
-            </div>
-            <div class="kpi-card">
-                <div class="metric-title">Otros / Financ.</div>
-                <div class="metric-value text-success">${pagos.financiamiento}</div>
-                <div class="metric-subtitle">${getPorcentaje(pagos.financiamiento)}% del total</div>
-            </div>
-        `;
+    const distCards = document.querySelectorAll('#payment-distribution-container .kpi-card');
+    if (distCards.length >= 4) {
+        const updatePago = (idx, valor) => {
+            distCards[idx].querySelector('.metric-value').innerText = valor;
+            distCards[idx].querySelector('.metric-subtitle').innerText = tVentas > 0 ? `${((valor/tVentas)*100).toFixed(1)}% del total` : `0% del total`;
+        };
+        updatePago(0, pagos.transferencia);
+        updatePago(1, pagos.tarjeta);
+        updatePago(2, pagos.efectivo);
+        updatePago(3, pagos.financiamiento);
     }
 }
