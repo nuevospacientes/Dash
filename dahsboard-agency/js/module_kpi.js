@@ -2,9 +2,6 @@
    MÓDULO DE KPIs (VISTA GENERAL)
    ========================================== */
 
-// Valor estimado por venta para calcular la facturación (Modifícalo según el High-Ticket de la clínica)
-const TICKET_PROMEDIO = 500; 
-
 function renderizarVistaGeneral(dataFiltrada) {
     // 1. Conteo Base de las tablas
     const tLeads = dataFiltrada.leads.length;
@@ -27,49 +24,52 @@ function renderizarVistaGeneral(dataFiltrada) {
 
     // 4. Obtener Metas configuradas por el usuario (o valores por defecto)
     const metas = JSON.parse(localStorage.getItem('np_metas')) || {
-        ads: 3000, facturacion: 15000, citas: 100
+        ads: 3000, citas: 100
     };
 
-    // 5. Cálculos Financieros Estimados (Usando el presupuesto mensual objetivo)
+    // 5. Cálculos Financieros Estimados (Usando el presupuesto mensual objetivo temporalmente)
+    // Más adelante, "inversionActual" vendrá del módulo de Meta Ads.
+    const inversionActual = 0; 
     const cpl = tLeads > 0 ? (metas.ads / tLeads).toFixed(2) : 0;
     const cpa = tCitas > 0 ? (metas.ads / tCitas).toFixed(2) : 0;
-    const facturacionActual = tVentas * TICKET_PROMEDIO;
 
     // ==========================================
     // RENDERIZADO EN PANTALLA
     // ==========================================
 
-    // A. Actualizar las 6 tarjetas de Rendimiento del Embudo
+    // A. Actualizar las 5 tarjetas de Rendimiento del Embudo
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
-    if(kpiCards.length >= 6) {
+    if(kpiCards.length >= 5) {
+        // Tarjeta 1: Leads
         kpiCards[0].querySelector('.metric-value').innerText = tLeads;
         kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
         
-        kpiCards[1].querySelector('.metric-value').innerText = `${contactRate}%`;
-        kpiCards[1].querySelector('.metric-subtitle').innerText = `${tContactados} Leads Contactados`;
+        // Tarjeta 2: Contactados
+        kpiCards[1].querySelector('.metric-value').innerText = tContactados;
+        kpiCards[1].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
         
+        // Tarjeta 3: Citas
         kpiCards[2].querySelector('.metric-value').innerText = tCitas;
-        kpiCards[2].querySelector('.metric-subtitle').innerText = `Booking Rate: ${bookingRate}%`;
+        kpiCards[2].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa}`;
         
+        // Tarjeta 4: Shows
         kpiCards[3].querySelector('.metric-value').innerText = tShows;
         kpiCards[3].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
         
+        // Tarjeta 5: Ventas Cerradas
         kpiCards[4].querySelector('.metric-value').innerText = tVentas;
         kpiCards[4].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
-        
-        kpiCards[5].querySelector('.metric-value').innerText = `$${cpa}`;
-        kpiCards[5].querySelector('.metric-subtitle').innerText = `Presupuesto Ref: $${metas.ads}`;
     }
 
     // B. Actualizar Barras de Progreso (Top de la pantalla)
-    const progFacturacion = metas.facturacion > 0 ? (facturacionActual / metas.facturacion) * 100 : 0;
+    const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
     const progCitas = metas.citas > 0 ? (tCitas / metas.citas) * 100 : 0;
 
     const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
     if(topCards.length >= 2) {
-        // Barra Facturación
-        topCards[0].querySelector('.metric-value').innerText = `$${facturacionActual.toLocaleString('en-US')}`;
-        topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progFacturacion, 100)}%`;
+        // Barra Ads
+        topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${metas.ads.toLocaleString('en-US')}`;
+        topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progAds, 100)}%`;
         
         // Barra Citas
         topCards[1].querySelector('.metric-value').innerText = `${tCitas} / ${metas.citas}`;
