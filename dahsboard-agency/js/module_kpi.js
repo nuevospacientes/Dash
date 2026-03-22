@@ -39,24 +39,26 @@ function renderizarVistaGeneral(dataFiltrada) {
 
     // A. Actualizar las 5 tarjetas de Rendimiento del Embudo
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
+    
+   
     if(kpiCards.length >= 5) {
-        // Tarjeta 1: Leads
+        // Tarjeta 1 (Índice 0): Leads
         kpiCards[0].querySelector('.metric-value').innerText = tLeads;
         kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
         
-        // Tarjeta 2: Contactados
+        // Tarjeta 2 (Índice 1): Contactados
         kpiCards[1].querySelector('.metric-value').innerText = tContactados;
         kpiCards[1].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
         
-        // Tarjeta 3: Citas
+        // Tarjeta 3 (Índice 2): Citas
         kpiCards[2].querySelector('.metric-value').innerText = tCitas;
         kpiCards[2].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa}`;
         
-        // Tarjeta 4: Shows
+        // Tarjeta 4 (Índice 3): Shows
         kpiCards[3].querySelector('.metric-value').innerText = tShows;
         kpiCards[3].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
         
-        // Tarjeta 5: Ventas Cerradas
+        // Tarjeta 5 (Índice 4): Ventas Cerradas
         kpiCards[4].querySelector('.metric-value').innerText = tVentas;
         kpiCards[4].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
     }
@@ -84,7 +86,7 @@ function renderizarVistaGeneral(dataFiltrada) {
         else if (metodo.includes('tarjeta') || metodo.includes('link')) pagos.tarjeta++;
         else if (metodo.includes('efectivo')) pagos.efectivo++;
         else if (metodo.includes('financiamiento') || metodo.includes('cuotas')) pagos.financiamiento++;
-        else pagos.transferencia++; // Si ponen "Otro", lo sumamos a transferencia por defecto
+        else pagos.transferencia++; 
     });
 
     const distCards = document.querySelectorAll('#payment-distribution-container .kpi-card');
