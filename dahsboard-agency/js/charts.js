@@ -34,7 +34,7 @@ function renderizarGraficos(dataFiltrada) {
             let rawDate = item[propFecha];
             if (!rawDate) return;
 
-            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate) : new Date(rawDate);
+            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item) : new Date(rawDate);
             
             if (d && !isNaN(new Date(d).getTime())) {
                 let t = new Date(d).getTime();
