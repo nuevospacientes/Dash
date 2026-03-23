@@ -103,17 +103,21 @@ function renderizarVistaGeneral(dataFiltrada) {
         let fLlamada = c['Fecha 1er llamada'];
         let hLlamada = c['Hora 1er llamada'];
         
-        // Buscamos la zona horaria del lead (si no existe, asumimos la global para no romper)
+        // Buscamos la zona horaria del lead
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
 
         if (fEntrada && hEntrada && fLlamada && hLlamada) {
-            let tEntrada = parseDateSpanish(fEntrada, c);
-            let tLlamada = parseDateSpanish(fLlamada, c);
+            // Pasamos el nombre de la columna para aprovechar la memoria caché
+            let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
+            let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
 
             if (tEntrada && tLlamada) {
+                // Función que convierte "14:30:00" en {h: 14, m: 30, s: 0}
                 let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-                let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
-                let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
+                
+                // ¡AQUÍ FALTABAN ESTAS DOS LÍNEAS VITALES!
+                let timeE = parseTime(hEntrada);
+                let timeL = parseTime(hLlamada);
 
                 let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
                 let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
