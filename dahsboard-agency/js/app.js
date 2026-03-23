@@ -2,6 +2,9 @@
    EL CEREBRO: DESCARGA, LIMPIEZA Y CÁLCULOS
    ========================================== */
 
+// Declarar AppData al inicio para que no explote si algo carga antes de tiempo
+window.AppData = window.AppData || {};
+
 /* ==========================================
    SISTEMA GLOBAL DE MANEJO DE ERRORES
    ========================================== */
@@ -43,33 +46,17 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 
 
-// 1. Promesa robusta para descargar y parsear CSV
-async function fetchCSV(url) {
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Error HTTP: ${response.status} al intentar descargar ${url}`);
-        }
-        const textData = await response.text();
-        
-        return new Promise((resolve, reject) => {
-            Papa.parse(textData, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors.length > 0) {
-                        console.warn(`PapaParse encontró errores menores al leer ${url}:`, results.errors);
-                    }
-                    resolve(results.data);
-                },
-                error: function(err) {
-                    reject(new Error(`PapaParse falló al leer los datos de ${url}: ${err.message}`));
-                }
-            });
+// 1. Promesa para envolver PapaParse y hacerlo asíncrono
+function fetchCSV(url) {
+    return new Promise((resolve, reject) => {
+        Papa.parse(url, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) { resolve(results.data); },
+            error: function(err) { reject(err); }
         });
-    } catch (error) {
-        throw new Error(`Fallo en fetchCSV al intentar descargar ${url}: ${error.message}`);
-    }
+    });
 }
 
 // 2. Función Maestra de Inicialización
@@ -145,8 +132,8 @@ function poblarFiltros() {
 // 4. MOTOR INTELIGENTE DE FECHAS
 // ==========================================
 
-// Convierte los 3 formatos de tus CSVs a Tiempo Real (Milisegundos)
-function parseDateSpanish(dateStr) {
+// Agregamos "row = null" para pasar el contexto de la fila y no lance error de "undefined"
+function parseDateSpanish(dateStr, row = null) {
     if (!dateStr) return null;
     let str = String(dateStr).trim().toLowerCase();
 
@@ -163,7 +150,7 @@ function parseDateSpanish(dateStr) {
         if (p.length === 3) return new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
     }
 
-    // 2. Si NO es el formato de Shows, le quitamos la posible hora pegada (Ej: "21/03/2026 14:18" -> "21/03/2026")
+    // 2. Si NO es el formato de Shows, le quitamos la posible hora pegada
     str = str.split(' ')[0];
 
     // 3. Evaluamos el formato con barras ("21/03/2026")
@@ -224,7 +211,7 @@ function getRangoFechas() {
         start = new Date(now.getFullYear(), 0, 1).getTime(); 
         end = new Date(now.getFullYear() + 1, 0, 1).getTime(); 
     }
-    // NUEVA LÓGICA PARA FECHAS PERSONALIZADAS
+    // LÓGICA PARA FECHAS PERSONALIZADAS
     else if(val === 'custom') {
         const customStart = document.getElementById('custom-start-date').value;
         const customEnd = document.getElementById('custom-end-date').value;
@@ -232,7 +219,6 @@ function getRangoFechas() {
         if (customStart && customEnd) {
             const [sy, sm, sd] = customStart.split('-');
             const [ey, em, ed] = customEnd.split('-');
-            // Creamos las fechas exactas asegurando que tome el día entero del final
             start = new Date(sy, sm - 1, sd).getTime();
             end = new Date(ey, em - 1, ed).getTime() + 86400000; 
         }
@@ -244,30 +230,24 @@ function getRangoFechas() {
 // 5. MOTOR DE PROCESAMIENTO Y RENDERIZADO
 // ==========================================
 function procesarYRenderizar() {
-    if (!window.AppData.raw.leads) return;
+    // Agregamos window.AppData.raw para evitar errores si carga antes
+    if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
 
     const campaignSelected = document.getElementById('global-campaign-filter').value;
     const operatorSelected = document.getElementById('global-operator-filter').value;
     const { start, end } = getRangoFechas();
 
-    // Filtro Universal (Evalúa Campaña, Operador y Fecha exacta)
-    // Filtro Universal (Evalúa Campaña, Operador y Fecha exacta)
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
         if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
         if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
         
-       // CORRECCIÓN: Lógica de exclusión estricta (Fail-Closed)
         if (start !== null && end !== null && colFecha) {
-            // 1. Si la celda está vacía, rechazamos la fila
             if (!row[colFecha]) return false;
             
-            // PASAMOS ROW AQUÍ PARA QUE LA FUNCIÓN TENGA EL CONTEXTO
+            // Le pasamos "row" a la función para que no de error
             const rowTime = parseDateSpanish(row[colFecha], row); 
             
-            // 2. Si la celda tiene texto pero no es una fecha entendible, la rechazamos
             if (!rowTime) return false; 
-            
-            // 3. Si la fecha existe pero está fuera del rango seleccionado, la rechazamos
             if (rowTime < start || rowTime >= end) return false;
         }
         return true;
@@ -291,34 +271,31 @@ function procesarYRenderizar() {
         shows: showsF,
         noShows: noShowsF,
         cancelados: canceladosF,
-        dateRange: { start, end } // <--- NUEVO: Mandamos el límite de fechas a los gráficos
+        dateRange: { start, end } 
     };
 
-    // 5.2 LLAMAR A LOS MÓDULOS EXTERNOS PARA QUE DIBUJEN LA INTERFAZ
+    // 5.2 LLAMAR A LOS MÓDULOS EXTERNOS
     if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
     if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
     if (typeof renderizarGraficos === 'function') renderizarGraficos(dataFiltrada);
 }
 
-// 6. ESCUCHADORES DE EVENTOS GLOBALES
+// 6. ESCUCHADORES DE EVENTOS GLOBALES (Tal como tú los tenías)
 
-// Control especial para el filtro de fechas
 document.getElementById('global-date-filter').addEventListener('change', function(e) {
     const customContainer = document.getElementById('custom-date-container');
-    if (e.target.value === 'custom') {
-        // Mostrar los calendarios y no hacer nada hasta que den clic en "Aplicar"
-        customContainer.style.display = 'flex';
-    } else {
-        // Ocultar los calendarios y procesar normalmente
-        customContainer.style.display = 'none';
-        procesarYRenderizar();
+    // Pequeña validación por si el contenedor aún no existe en el HTML
+    if (customContainer) {
+        if (e.target.value === 'custom') {
+            customContainer.style.display = 'flex';
+        } else {
+            customContainer.style.display = 'none';
+            procesarYRenderizar();
+        }
     }
 });
 
-// Botón "Aplicar" de las fechas personalizadas
 document.getElementById('btn-apply-custom-date').addEventListener('click', procesarYRenderizar);
-
-// Filtros normales
 document.getElementById('global-campaign-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-operator-filter').addEventListener('change', procesarYRenderizar);
 document.getElementById('global-timezone').addEventListener('change', procesarYRenderizar);
