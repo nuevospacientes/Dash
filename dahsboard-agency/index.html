@@ -201,26 +201,31 @@
 
                 <h2 class="section-title mt-4">Distribución de Pagos</h2>
                 
-                <div class="grid-cards" style="grid-template-columns: repeat(4, 1fr);" id="payment-distribution-container">
-                    <div class="kpi-card clickable-card">
-                        <div class="metric-title">Transferencia</div>
-                        <div class="metric-value text-success">0</div>
-                        <div class="metric-subtitle">0% del total</div>
+                <div class="grid-cards" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));" id="payment-distribution-container">
                     </div>
-                    <div class="kpi-card clickable-card">
-                        <div class="metric-title">Tarjeta / Link</div>
-                        <div class="metric-value text-success">0</div>
-                        <div class="metric-subtitle">0% del total</div>
-                    </div>
-                    <div class="kpi-card clickable-card">
-                        <div class="metric-title">Efectivo</div>
-                        <div class="metric-value text-success">0</div>
-                        <div class="metric-subtitle">0% del total</div>
-                    </div>
-                    <div class="kpi-card clickable-card">
-                        <div class="metric-title">Financiamiento</div>
-                        <div class="metric-value text-success">0</div>
-                        <div class="metric-subtitle">0% del total</div>
+
+                <div id="modal-payment-details" class="modal-overlay" style="display: none; z-index: 10000;">
+                    <div class="modal-content" style="max-width: 700px; border-top: 4px solid var(--brand-primary);">
+                        <div class="modal-header">
+                            <h2><i class="fa-solid fa-credit-card"></i> Pagos vía: <span id="payment-modal-title" style="color: var(--brand-primary);"></span></h2>
+                            <button id="close-payment-modal" class="close-btn">&times;</button>
+                        </div>
+                        <p class="modal-desc" style="margin-bottom: 15px;">Lista detallada de pacientes filtrados con este método de pago.</p>
+                        
+                        <div class="table-responsive" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                            <table class="data-table" id="payment-details-table">
+                                <thead style="position: sticky; top: 0; background: var(--bg-panel); z-index: 1;">
+                                    <tr>
+                                        <th>Fecha Visita</th>
+                                        <th>Paciente</th>
+                                        <th>Campaña</th>
+                                        <th>Operador</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
