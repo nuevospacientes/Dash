@@ -61,12 +61,15 @@ function fetchCSV(url) {
 
 // 2. Función Maestra de Inicialización
 async function loadAllData() {
-    document.getElementById('welcome-message').innerText = "Descargando bases de datos...";
+    const welcome = document.getElementById('welcome-message');
+    if(welcome) welcome.innerText = "Descargando bases de datos...";
     
     try {
+        // Añadimos las dos nuevas hojas a la lista de descargas
         const [
             leadsGenerados, leadsContactados, llamadasConectadas, 
-            citasGeneradas, shows, noShows, cancelaCita
+            citasGeneradas, shows, noShows, cancelaCita,
+            leadsAntiguos, metaAds 
         ] = await Promise.all([
             fetchCSV(DB_URLS.leadsGenerados),
             fetchCSV(DB_URLS.leadsContactados),
@@ -74,18 +77,44 @@ async function loadAllData() {
             fetchCSV(DB_URLS.citasGeneradas),
             fetchCSV(DB_URLS.shows),
             fetchCSV(DB_URLS.noShows),
-            fetchCSV(DB_URLS.cancelaCita)
+            fetchCSV(DB_URLS.cancelaCita),
+            fetchCSV(DB_URLS.leadsAntiguos), 
+            fetchCSV(DB_URLS.metaAds)        
         ]);
 
-        // Guardamos la data cruda
+        // ==========================================
+        // FUSIÓN DE LEADS (Mapeo de Hoja 9 a formato de Hoja 1)
+        // ==========================================
+        const leadsAntiguosFormateados = (leadsAntiguos || []).map(row => {
+            return {
+                'Fecha entrada lead': row['Lead entry date'] || '',
+                'Hora Generado': row['Lead entry time'] || '',
+                // Unimos Clínica y Tratamiento con un guion
+                'Campaña': `${(row['Clinica'] || '').trim()}-${(row['Tratamiento Solicitado'] || '').trim()}`,
+                // Unimos Nombre y Apellido
+                'Nombre': `${(row['First Name'] || '').trim()} ${(row['Last Name'] || '').trim()}`.trim(),
+                'Numero': row['Phone'] || '',
+                'Cita solictida para': row['Fecha Cita Solicitada'] || '',
+                'Zona Horaria': row['Timezone'] || '',
+                'Ventana operativa SI/NO': '' // Queda vacío porque la hoja antigua no lo tenía
+            };
+        });
+
+        // Juntamos ambos arrays (Los nuevos primero, los antiguos después)
+        const todosLosLeads = [...(leadsGenerados || []), ...leadsAntiguosFormateados];
+
+        // ==========================================
+        // GUARDADO EN MEMORIA GLOBAL
+        // ==========================================
         window.AppData.raw = {
-            leads: leadsGenerados, 
+            leads: todosLosLeads, 
             contactados: leadsContactados,
             llamadas: llamadasConectadas, 
             citas: citasGeneradas,
             shows: shows, 
             noShows: noShows, 
-            cancelados: cancelaCita
+            cancelados: cancelaCita,
+            ads: metaAds 
         };
 
         console.log("✅ Toda la data descargada con éxito", window.AppData.raw);
@@ -94,17 +123,16 @@ async function loadAllData() {
         procesarYRenderizar();
 
         const session = JSON.parse(localStorage.getItem('np_session'));
-        if(session) {
-            document.getElementById('welcome-message').innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
+        if(session && welcome) {
+            welcome.innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
         }
 
     } catch (error) {
         console.error("Detalle técnico del error:", error);
-        
         mostrarErrorSistema(
-            "No se pudieron descargar o procesar los archivos CSV.",
+            "Hubo un error al descargar o procesar la información.",
             "Función loadAllData() en app.js",
-            "1. Revisa que todas las URLs en config.js estén correctamente escritas.\n2. Revisa que ningún Google Sheet haya sido eliminado o puesto como privado.\n3. Verifica si los encabezados del CSV no han cambiado de nombre."
+            "Asegúrate de que la URL termine en 'output=csv' y que la hoja sea pública."
         );
     }
 }
