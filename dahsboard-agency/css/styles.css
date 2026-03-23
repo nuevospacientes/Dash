@@ -451,3 +451,34 @@ body {
 
 .clickable-card { cursor: pointer; }
 .clickable-card:active { transform: scale(0.98); }
+
+/* ==========================================
+   AJUSTES ESPECÍFICOS: TARJETAS DE PAGOS
+   ========================================== */
+#payment-distribution-container .kpi-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centrado vertical perfecto */
+    align-items: center;     /* Centrado horizontal perfecto */
+    min-height: 150px;       
+    padding: 15px;
+}
+
+#payment-distribution-container .metric-title {
+    font-size: 1.05rem; 
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-main); 
+}
+
+#payment-distribution-container .metric-value {
+    font-size: 2.5rem; 
+    font-weight: 800;
+    line-height: 1;
+}
+
+#payment-distribution-container .metric-subtitle {
+    font-size: 0.95rem; /* Subtítulo más claro */
+    margin-top: 10px;
+    color: var(--text-muted);
+}
