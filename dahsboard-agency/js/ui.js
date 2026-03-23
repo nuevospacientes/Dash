@@ -89,3 +89,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+   // 4. LÓGICA PARA CERRAR EL MODAL DE DETALLE DE PAGOS
+    const closePaymentModal = document.getElementById('close-payment-modal');
+    const modalPaymentDetails = document.getElementById('modal-payment-details');
+
+    if (closePaymentModal && modalPaymentDetails) {
+        closePaymentModal.addEventListener('click', () => {
+            modalPaymentDetails.style.display = 'none';
+        });
+    }
