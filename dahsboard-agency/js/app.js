@@ -43,17 +43,33 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 
 
-// 1. Promesa para envolver PapaParse y hacerlo asíncrono
-function fetchCSV(url) {
-    return new Promise((resolve, reject) => {
-        Papa.parse(url, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) { resolve(results.data); },
-            error: function(err) { reject(err); }
+// 1. Promesa robusta para descargar y parsear CSV
+async function fetchCSV(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status} al intentar descargar ${url}`);
+        }
+        const textData = await response.text();
+        
+        return new Promise((resolve, reject) => {
+            Papa.parse(textData, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        console.warn(`PapaParse encontró errores menores al leer ${url}:`, results.errors);
+                    }
+                    resolve(results.data);
+                },
+                error: function(err) {
+                    reject(new Error(`PapaParse falló al leer los datos de ${url}: ${err.message}`));
+                }
+            });
         });
-    });
+    } catch (error) {
+        throw new Error(`Fallo en fetchCSV al intentar descargar ${url}: ${error.message}`);
+    }
 }
 
 // 2. Función Maestra de Inicialización
