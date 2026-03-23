@@ -137,12 +137,20 @@ function renderizarVistaGeneral(dataFiltrada) {
     let avgStlMinutes = validStlCount > 0 ? Math.round(totalMinutes / validStlCount) : 0;
     let stlDisplay = avgStlMinutes < 60 ? `${avgStlMinutes} min` : `${Math.floor(avgStlMinutes/60)}h ${avgStlMinutes%60}m`;
 
-    // 5. Metas y Finanzas
+    // 5. Metas y Finanzas Reales (Desde Meta Ads)
     const metas = JSON.parse(localStorage.getItem('np_metas')) || { ads: 3000, citas: 100 };
-    const inversionActual = 0; 
-    const cpl = tLeads > 0 ? (metas.ads / tLeads).toFixed(2) : 0;
-    const cpa = tCitas > 0 ? (metas.ads / tCitas).toFixed(2) : 0;
+    
+    let inversionActual = 0;
+    if (dataFiltrada.ads) {
+        dataFiltrada.ads.forEach(ad => {
+            // Limpiamos el texto "$61.97" para convertirlo en número matemático
+            let spent = String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "");
+            inversionActual += parseFloat(spent) || 0;
+        });
+    }
 
+    const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
+    const cpa = tCitas > 0 ? (inversionActual / tCitas).toFixed(2) : 0;
     // ==========================================
     // A. RENDERIZAR TARJETAS 
     // ==========================================
