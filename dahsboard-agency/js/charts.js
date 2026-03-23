@@ -2,37 +2,23 @@
    GRÁFICOS VISUALES
    ========================================== */
 
-let chartTendencia = null;
-let chartHorasHoy = null; 
-let chartHistoricoDias = null;
-let chartPagosDona = null;
+let chartTendencia = null; let chartHorasHoy = null; let chartHistoricoDias = null; let chartPagosDona = null;
+let currentDynamicLabelHoy = ""; let currentDynamicLabelHist = ""; let activeDynamicTab = "hoy"; 
 
-// Variables de estado para los labels de los Tabs
-let currentDynamicLabelHoy = "";
-let currentDynamicLabelHist = "";
-let activeDynamicTab = "hoy"; // Tab por defecto
+Chart.defaults.color = '#BDBDBD'; Chart.defaults.font.family = "'Inter', sans-serif";
 
-Chart.defaults.color = '#BDBDBD';
-Chart.defaults.font.family = "'Inter', sans-serif";
-
-// Función Global para cambiar de pestaña en el gráfico dual
 window.switchDynamicTab = function(tab) {
     activeDynamicTab = tab;
-    const wrapHoy = document.getElementById('wrapper-chart-hoy');
-    const wrapHist = document.getElementById('wrapper-chart-hist');
-    const btnHoy = document.getElementById('btn-tab-hoy');
-    const btnHist = document.getElementById('btn-tab-hist');
-    const labelEl = document.getElementById('chart-dynamic-label');
-
+    const wrapHoy = document.getElementById('wrapper-chart-hoy'), wrapHist = document.getElementById('wrapper-chart-hist');
+    const btnHoy = document.getElementById('btn-tab-hoy'), btnHist = document.getElementById('btn-tab-hist'), labelEl = document.getElementById('chart-dynamic-label');
+    
     if(tab === 'hoy') {
-        if(wrapHoy) wrapHoy.style.display = 'block';
-        if(wrapHist) wrapHist.style.display = 'none';
+        if(wrapHoy) wrapHoy.style.display = 'block'; if(wrapHist) wrapHist.style.display = 'none';
         if(btnHoy) { btnHoy.style.background = 'var(--brand-primary)'; btnHoy.style.color = '#fff'; }
         if(btnHist) { btnHist.style.background = 'transparent'; btnHist.style.color = 'var(--text-muted)'; }
         if(labelEl) labelEl.innerText = currentDynamicLabelHoy;
     } else {
-        if(wrapHoy) wrapHoy.style.display = 'none';
-        if(wrapHist) wrapHist.style.display = 'block';
+        if(wrapHoy) wrapHoy.style.display = 'none'; if(wrapHist) wrapHist.style.display = 'block';
         if(btnHist) { btnHist.style.background = 'var(--brand-primary)'; btnHist.style.color = '#fff'; }
         if(btnHoy) { btnHoy.style.background = 'transparent'; btnHoy.style.color = 'var(--text-muted)'; }
         if(labelEl) labelEl.innerText = currentDynamicLabelHist;
@@ -40,16 +26,11 @@ window.switchDynamicTab = function(tab) {
 };
 
 function renderizarGraficos(dataFiltrada) {
-    const leads = dataFiltrada.leads || [];
-    const contactados = dataFiltrada.contactados || [];
-    const llamadas = dataFiltrada.llamadas || []; 
-    const citas = dataFiltrada.citas || [];
-    const shows = dataFiltrada.shows || [];
+    const leads = dataFiltrada.leads || []; const contactadosFiltrados = dataFiltrada.contactados || [];
+    const llamadas = dataFiltrada.llamadas || []; const citas = dataFiltrada.citas || []; const shows = dataFiltrada.shows || [];
     const { start, end } = dataFiltrada.dateRange || { start: null, end: null };
 
-    // ==========================================
-    // 1. TENDENCIA DIARIA GENERAL
-    // ==========================================
+    // 1. TENDENCIA GENERAL
     let timeline = {};
     const agruparPorFecha = (array, propFecha, key, filterFn = null) => {
         if (!array) return;
@@ -57,7 +38,7 @@ function renderizarGraficos(dataFiltrada) {
             if (filterFn && !filterFn(item)) return;
             let rawDate = item[propFecha];
             if (!rawDate) return;
-            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item) : new Date(rawDate);
+            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item, propFecha) : new Date(rawDate);
             if (d && !isNaN(new Date(d).getTime())) {
                 let t = new Date(d).getTime();
                 if (start !== null && end !== null) { if (t < start || t >= end) return; }
@@ -68,25 +49,16 @@ function renderizarGraficos(dataFiltrada) {
         });
     };
 
-    agruparPorFecha(leads, 'Fecha entrada lead', 'leads');
-    agruparPorFecha(contactados, 'Fecha 1er llamada', 'contactados');
-    agruparPorFecha(llamadas, 'Fecha last call', 'llamadas'); 
-    agruparPorFecha(citas, 'Cita generada', 'citas');
-    agruparPorFecha(shows, 'Fecha Visita', 'shows');
-    agruparPorFecha(shows, 'Fecha Visita', 'ventas', (item) => {
-        const dep = (item['Deposito'] || '').toLowerCase().trim();
-        return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
-    });
+    agruparPorFecha(leads, 'Fecha entrada lead', 'leads'); agruparPorFecha(contactadosFiltrados, 'Fecha 1er llamada', 'contactados');
+    agruparPorFecha(llamadas, 'Fecha last call', 'llamadas'); agruparPorFecha(citas, 'Cita generada', 'citas'); agruparPorFecha(shows, 'Fecha Visita', 'shows');
+    agruparPorFecha(shows, 'Fecha Visita', 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
 
     let labelsFechas = Object.keys(timeline).sort();
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     
     if (labelsFechas.length > 0) {
-        let firstD = new Date(labelsFechas[0] + 'T00:00:00');
-        let lastD = new Date(labelsFechas[labelsFechas.length - 1] + 'T00:00:00');
-        let labelText = (firstD.getMonth() === lastD.getMonth() && firstD.getFullYear() === lastD.getFullYear()) 
-            ? `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()}` 
-            : `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()} - ${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
+        let firstD = new Date(labelsFechas[0] + 'T00:00:00'), lastD = new Date(labelsFechas[labelsFechas.length - 1] + 'T00:00:00');
+        let labelText = (firstD.getMonth() === lastD.getMonth() && firstD.getFullYear() === lastD.getFullYear()) ? `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()}` : `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()} - ${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
         const labelEl = document.getElementById('chart-month-year-label');
         if (labelEl) labelEl.innerText = labelText;
     }
@@ -107,46 +79,42 @@ function renderizarGraficos(dataFiltrada) {
                     { label: 'Shows', data: labelsFechas.map(f => timeline[f].shows), borderColor: '#fbbf24', backgroundColor: '#fbbf24', tension: 0.4 },
                     { label: 'Ventas', data: labelsFechas.map(f => timeline[f].ventas), borderColor: '#e93d3d', backgroundColor: '#e93d3d', tension: 0.4, borderWidth: 3 }
                 ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' } } }
+            }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' } } }
         });
     }
 
-    // ==========================================
     // 2. DINÁMICA DUAL (HOY vs HISTÓRICO)
-    // ==========================================
     const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
     const rawContactados = (window.AppData && window.AppData.raw) ? window.AppData.raw.contactados : [];
     const campaignSelected = document.getElementById('global-campaign-filter') ? document.getElementById('global-campaign-filter').value : 'all';
     const operatorSelected = document.getElementById('global-operator-filter') ? document.getElementById('global-operator-filter').value : 'all';
 
-    const adjustToDashboardTz = (dateStr, timeStr, rowTz, rowObj) => {
+    const adjustToDashboardTz = (dateStr, timeStr, rowTz, rowObj, colName) => {
         if (!dateStr || !timeStr) return null;
-        let t = typeof parseDateSpanish === 'function' ? parseDateSpanish(dateStr, rowObj) : null;
+        let t = typeof parseDateSpanish === 'function' ? parseDateSpanish(dateStr, rowObj, colName) : null;
         if (!t) return null;
-        let p = String(timeStr).split(':');
-        let d = new Date(t);
+        let p = String(timeStr).split(':'), d = new Date(t);
         d.setHours(parseInt(p[0]||0), parseInt(p[1]||0), parseInt(p[2]||0));
-        let leadOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(rowTz) : 0;
-        d.setMinutes(d.getMinutes() + (globalOffset - leadOffset));
+        d.setMinutes(d.getMinutes() + (globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(rowTz) : 0)));
         return d;
     };
 
-    // --- 2A. DATA HISTÓRICA (Agrupada por Día) ---
+    // --- 2A. HISTÓRICO (Agrupa por Fecha de LLAMADA) ---
     let timelineHist = {};
-    contactados.forEach(c => {
+    contactadosFiltrados.forEach(c => {
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
-        let dateE = adjustToDashboardTz(c['Fecha entrada lead'] || c['Fecha Lead entra'], c['Hora Generado'] || c['Hora entrada'], leadTz, c);
-        if (dateE) {
-            let y = dateE.getFullYear(), m = String(dateE.getMonth()+1).padStart(2,'0'), d = String(dateE.getDate()).padStart(2,'0');
+        let dateL = adjustToDashboardTz(c['Fecha 1er llamada'], c['Hora 1er llamada'], leadTz, c, 'Fecha 1er llamada');
+        
+        if (dateL) {
+            let y = dateL.getFullYear(), m = String(dateL.getMonth()+1).padStart(2,'0'), d = String(dateL.getDate()).padStart(2,'0');
             let fechaStr = `${y}-${m}-${d}`;
             if (!timelineHist[fechaStr]) timelineHist[fechaStr] = { contactados: 0, sumaStl: 0, countStl: 0 };
             
             timelineHist[fechaStr].contactados++;
             
-            let dateL = adjustToDashboardTz(c['Fecha 1er llamada'], c['Hora 1er llamada'], leadTz, c);
-            if (dateL) {
+            let dateE = adjustToDashboardTz(c['Fecha entrada lead'] || c['Fecha Lead entra'], c['Hora Generado'] || c['Hora entrada'], leadTz, c, 'Fecha entrada lead');
+            if (dateE) {
                 timelineHist[fechaStr].sumaStl += (typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dateE, dateL) : 0);
                 timelineHist[fechaStr].countStl++;
             }
@@ -155,17 +123,10 @@ function renderizarGraficos(dataFiltrada) {
 
     let histFechas = Object.keys(timelineHist).sort();
     if (histFechas.length > 0) {
-        let firstD = new Date(histFechas[0] + 'T00:00:00');
-        let lastD = new Date(histFechas[histFechas.length - 1] + 'T00:00:00');
+        let firstD = new Date(histFechas[0] + 'T00:00:00'), lastD = new Date(histFechas[histFechas.length - 1] + 'T00:00:00');
         const fShort = (d) => `${String(d.getDate()).padStart(2, '0')}-${monthNames[d.getMonth()].toLowerCase()}`;
         currentDynamicLabelHist = (firstD.getTime() === lastD.getTime()) ? fShort(firstD) : `${fShort(firstD)} al ${fShort(lastD)}`;
-    } else {
-        currentDynamicLabelHist = "Sin datos";
-    }
-
-    let histEjeX = histFechas.map(f => new Date(f + 'T00:00:00').getDate().toString());
-    let histDataVol = histFechas.map(f => timelineHist[f].contactados);
-    let histDataStl = histFechas.map(f => timelineHist[f].countStl > 0 ? Math.round(timelineHist[f].sumaStl / timelineHist[f].countStl) : 0);
+    } else { currentDynamicLabelHist = "Sin datos"; }
 
     const ctxHist = document.getElementById('chart-historico-dias');
     if (ctxHist) {
@@ -173,31 +134,21 @@ function renderizarGraficos(dataFiltrada) {
         chartHistoricoDias = new Chart(ctxHist, {
             type: 'bar',
             data: {
-                labels: histEjeX,
+                labels: histFechas.map(f => new Date(f + 'T00:00:00').getDate().toString()),
                 datasets: [
-                    { label: 'Speed to Lead Promedio (Min)', data: histDataStl, type: 'line', borderColor: '#f6ad55', backgroundColor: '#f6ad55', borderWidth: 3, tension: 0.4, yAxisID: 'y1' },
-                    { label: 'Volumen Contactados', data: histDataVol, backgroundColor: 'rgba(59, 107, 250, 0.4)', borderColor: '#3b6bfa', borderWidth: 1, borderRadius: 4, yAxisID: 'y' }
+                    { label: 'Speed to Lead Promedio (Min)', data: histFechas.map(f => timelineHist[f].countStl > 0 ? Math.round(timelineHist[f].sumaStl / timelineHist[f].countStl) : 0), type: 'line', borderColor: '#f6ad55', backgroundColor: '#f6ad55', borderWidth: 3, tension: 0.4, yAxisID: 'y1' },
+                    { label: 'Volumen Contactados', data: histFechas.map(f => timelineHist[f].contactados), backgroundColor: 'rgba(59, 107, 250, 0.4)', borderColor: '#3b6bfa', borderWidth: 1, borderRadius: 4, yAxisID: 'y' }
                 ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                scales: {
-                    y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Nº de Contactados' }, beginAtZero: true, ticks: { stepSize: 1 } },
-                    y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Minutos (STL)' }, beginAtZero: true, grid: { drawOnChartArea: false } }
-                }
-            }
+            }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { y: { type: 'linear', display: true, position: 'left', beginAtZero: true, ticks: { stepSize: 1 } }, y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } } }
         });
     }
 
-    // --- 2B. DATA HOY (Agrupada por Hora, Ignora Fechas) ---
+    // --- 2B. HOY (Agrupa por Hora de LLAMADA) ---
     const currentHourTz = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: globalTz, hour: 'numeric', hourCycle: 'h23' }).format(new Date()), 10);
-    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: globalTz, year: 'numeric', month: '2-digit', day: '2-digit' });
-    const parts = formatter.formatToParts(new Date());
-    const todayStr = `${parts.find(p=>p.type==='year').value}-${parts.find(p=>p.type==='month').value}-${parts.find(p=>p.type==='day').value}`;
+    const pToday = new Intl.DateTimeFormat('en-US', { timeZone: globalTz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const todayStr = `${pToday.find(p=>p.type==='year').value}-${pToday.find(p=>p.type==='month').value}-${pToday.find(p=>p.type==='day').value}`;
 
-    let volHoy = new Array(24).fill(null);
-    let stlSumaHoy = new Array(24).fill(0);
-    let stlCountHoy = new Array(24).fill(0);
+    let volHoy = new Array(24).fill(null), stlSumaHoy = new Array(24).fill(0), stlCountHoy = new Array(24).fill(0);
     for (let i = 0; i <= currentHourTz; i++) volHoy[i] = 0;
 
     rawContactados.forEach(c => {
@@ -205,16 +156,16 @@ function renderizarGraficos(dataFiltrada) {
         if (operatorSelected !== 'all' && c['Operador'] !== operatorSelected) return;
 
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
-        let dateE = adjustToDashboardTz(c['Fecha entrada lead'] || c['Fecha Lead entra'], c['Hora Generado'] || c['Hora entrada'], leadTz, c);
+        let dateL = adjustToDashboardTz(c['Fecha 1er llamada'], c['Hora 1er llamada'], leadTz, c, 'Fecha 1er llamada');
 
-        if (dateE) {
-            let y = dateE.getFullYear(), m = String(dateE.getMonth()+1).padStart(2,'0'), d = String(dateE.getDate()).padStart(2,'0');
+        if (dateL) {
+            let y = dateL.getFullYear(), m = String(dateL.getMonth()+1).padStart(2,'0'), d = String(dateL.getDate()).padStart(2,'0');
             if (`${y}-${m}-${d}` === todayStr) {
-                let h = dateE.getHours();
+                let h = dateL.getHours(); // <-- AHORA SÍ: Agrupado por la hora real de la llamada
                 if (h >= 0 && h <= currentHourTz) {
                     volHoy[h]++;
-                    let dateL = adjustToDashboardTz(c['Fecha 1er llamada'], c['Hora 1er llamada'], leadTz, c);
-                    if (dateL) {
+                    let dateE = adjustToDashboardTz(c['Fecha entrada lead'] || c['Fecha Lead entra'], c['Hora Generado'] || c['Hora entrada'], leadTz, c, 'Fecha entrada lead');
+                    if (dateE) {
                         stlSumaHoy[h] += (typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dateE, dateL) : 0);
                         stlCountHoy[h]++;
                     }
@@ -224,52 +175,34 @@ function renderizarGraficos(dataFiltrada) {
     });
 
     let avgStlHoy = new Array(24).fill(null);
-    for(let i=0; i <= currentHourTz; i++){ avgStlHoy[i] = stlCountHoy[i] > 0 ? Math.round(stlSumaHoy[i] / stlCountHoy[i]) : 0; }
+    for(let i=0; i <= currentHourTz; i++) avgStlHoy[i] = stlCountHoy[i] > 0 ? Math.round(stlSumaHoy[i] / stlCountHoy[i]) : 0;
     
-    let shortDateStr = new Intl.DateTimeFormat('es-ES', { timeZone: globalTz, day: '2-digit', month: 'short' }).format(new Date());
-    currentDynamicLabelHoy = `Hoy, ${shortDateStr.replace('.', '')}`;
+    currentDynamicLabelHoy = `Hoy, ${new Intl.DateTimeFormat('es-ES', { timeZone: globalTz, day: '2-digit', month: 'short' }).format(new Date()).replace('.', '')}`;
 
     const ctxHoy = document.getElementById('chart-horas-hoy');
     if (ctxHoy) {
-        let labelsHoras = Array.from({length: 24}, (_, i) => `${i}:00`);
         if (chartHorasHoy) chartHorasHoy.destroy();
         chartHorasHoy = new Chart(ctxHoy, {
             type: 'bar',
             data: {
-                labels: labelsHoras,
+                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
                 datasets: [
                     { label: 'Speed to Lead Hoy (Min)', data: avgStlHoy, type: 'line', borderColor: '#f6ad55', backgroundColor: '#f6ad55', borderWidth: 3, tension: 0.4, yAxisID: 'y1', spanGaps: false },
                     { label: 'Contactados Hoy', data: volHoy, backgroundColor: 'rgba(59, 107, 250, 0.4)', borderColor: '#3b6bfa', borderWidth: 1, borderRadius: 4, yAxisID: 'y' }
                 ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                scales: {
-                    y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Nº de Contactados' }, beginAtZero: true, ticks: { stepSize: 1 } },
-                    y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Minutos (STL)' }, beginAtZero: true, grid: { drawOnChartArea: false } }
-                }
-            }
+            }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { y: { type: 'linear', display: true, position: 'left', beginAtZero: true, ticks: { stepSize: 1 } }, y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } } }
         });
     }
 
-    // Actualizar UI al estado activo
     window.switchDynamicTab(activeDynamicTab);
 
-    // ==========================================
-    // 3. DISTRIBUCIÓN DE PAGOS (Dona Reactiva)
-    // ==========================================
+    // 3. DISTRIBUCIÓN DE PAGOS
     const pagosObj = {};
     shows.forEach(v => {
         let dep = (v['Deposito'] || '').trim();
         if (dep !== '' && dep.toLowerCase() !== 'sin deposito' && dep.toLowerCase() !== 'sin depósito') {
-            let mLower = dep.toLowerCase();
-            let mFinal = dep;
-            if (mLower.includes('transferencia')) mFinal = 'Transferencia';
-            else if (mLower.includes('link')) mFinal = 'Link de Pago';
-            else if (mLower.includes('tarjeta')) mFinal = 'Tarjeta';
-            else if (mLower.includes('efectivo')) mFinal = 'Efectivo';
-            else if (mLower.includes('financiamiento') || mLower.includes('cuota')) mFinal = 'Financiamiento';
-            else mFinal = mFinal.charAt(0).toUpperCase() + mFinal.slice(1);
+            let mLower = dep.toLowerCase(), mFinal = dep;
+            if (mLower.includes('transferencia')) mFinal = 'Transferencia'; else if (mLower.includes('link')) mFinal = 'Link de Pago'; else if (mLower.includes('tarjeta')) mFinal = 'Tarjeta'; else if (mLower.includes('efectivo')) mFinal = 'Efectivo'; else if (mLower.includes('financiamiento') || mLower.includes('cuota')) mFinal = 'Financiamiento'; else mFinal = mFinal.charAt(0).toUpperCase() + mFinal.slice(1);
             pagosObj[mFinal] = (pagosObj[mFinal] || 0) + 1;
         }
     });
@@ -277,14 +210,6 @@ function renderizarGraficos(dataFiltrada) {
     const ctxPagos = document.getElementById('chart-pagos-dona');
     if (ctxPagos) {
         if (chartPagosDona) chartPagosDona.destroy();
-        let labelsPagos = Object.keys(pagosObj);
-        let dataPagos = Object.values(pagosObj);
-        let palette = ['#3b6bfa', '#37ca37', '#f6ad55', '#e93d3d', '#9f7aea', '#ecc94b'];
-
-        chartPagosDona = new Chart(ctxPagos, {
-            type: 'doughnut',
-            data: { labels: labelsPagos, datasets: [{ data: dataPagos, backgroundColor: palette.slice(0, labelsPagos.length), borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { color: '#BDBDBD', boxWidth: 12, font: {size: 11} } } } }
-        });
+        chartPagosDona = new Chart(ctxPagos, { type: 'doughnut', data: { labels: Object.keys(pagosObj), datasets: [{ data: Object.values(pagosObj), backgroundColor: ['#3b6bfa', '#37ca37', '#f6ad55', '#e93d3d', '#9f7aea', '#ecc94b'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { color: '#BDBDBD', boxWidth: 12, font: {size: 11} } } } } });
     }
 }
