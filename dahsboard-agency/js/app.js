@@ -65,7 +65,7 @@ async function loadAllData() {
             contactados: leadsContactados, llamadas: llamadasConectadas, citas: citasGeneradas, shows: shows, noShows: noShows, cancelados: cancelaCita, ads: metaAds 
         };
         
-        poblarFiltros();
+        // Ya no llamamos a poblarFiltros() estático, el renderizado dinámico se encarga
         procesarYRenderizar();
 
         const session = JSON.parse(localStorage.getItem('np_session'));
@@ -77,27 +77,12 @@ async function loadAllData() {
     }
 }
 
-function poblarFiltros() {
-    const campañas = new Set(), operadores = new Set();
-    if(window.AppData.raw.leads) window.AppData.raw.leads.forEach(r => { if(r['Campaña']) campañas.add(r['Campaña'].trim()); });
-    if(window.AppData.raw.citas) window.AppData.raw.citas.forEach(r => { if(r['Operador']) operadores.add(r['Operador'].trim()); });
-
-    const campFilter = document.getElementById('global-campaign-filter');
-    const opFilter = document.getElementById('global-operator-filter');
-    if(campFilter) campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
-    if(opFilter) opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
-
-    Array.from(campañas).sort().forEach(camp => { if(campFilter) campFilter.innerHTML += `<option value="${camp}">${camp}</option>`; });
-    Array.from(operadores).sort().forEach(op => { if(opFilter) opFilter.innerHTML += `<option value="${op}">${op}</option>`; });
-}
-
 // ==========================================
 // 4. MOTOR INTELIGENTE DE FECHAS CON CACHÉ
 // ==========================================
 function parseDateSpanish(dateStr, row = null, colName = null) {
     if (!dateStr) return null;
 
-    // MAGIA DE RENDIMIENTO: Si ya la procesamos antes, la devolvemos al instante sin calcular
     if (row && colName && row[`_ts_${colName}`] !== undefined) {
         return row[`_ts_${colName}`];
     }
@@ -132,9 +117,7 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
         }
     }
 
-    // Guardamos en memoria para el próximo filtro
     if (row && colName && finalTime !== null) { row[`_ts_${colName}`] = finalTime; }
-    
     return finalTime;
 }
 
@@ -163,16 +146,65 @@ function getRangoFechas() {
 
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
-    const campaignSelected = document.getElementById('global-campaign-filter').value;
-    const operatorSelected = document.getElementById('global-operator-filter').value;
+    
     const { start, end } = getRangoFechas();
+    
+    // ==========================================
+    // 1. RECONSTRUCCIÓN DINÁMICA DE DESPLEGABLES
+    // ==========================================
+    const campañasDisponibles = new Set();
+    const operadoresDisponibles = new Set();
 
+    // Verificamos qué campañas tuvieron leads en estas fechas
+    window.AppData.raw.leads.forEach(r => {
+        let esValida = true;
+        if (start !== null && end !== null) {
+            const t = parseDateSpanish(r['Fecha entrada lead'], r, 'Fecha entrada lead');
+            if (!t || t < start || t >= end) esValida = false;
+        }
+        if (esValida && r['Campaña']) campañasDisponibles.add(r['Campaña'].trim());
+    });
+
+    // Verificamos qué operadores generaron citas en estas fechas
+    window.AppData.raw.citas.forEach(r => {
+        let esValida = true;
+        if (start !== null && end !== null) {
+            const t = parseDateSpanish(r['Cita generada'], r, 'Cita generada');
+            if (!t || t < start || t >= end) esValida = false;
+        }
+        if (esValida && r['Operador']) operadoresDisponibles.add(r['Operador'].trim());
+    });
+
+    const campFilter = document.getElementById('global-campaign-filter');
+    const opFilter = document.getElementById('global-operator-filter');
+
+    // Memorizamos lo que el usuario tenía seleccionado antes de reconstruir el menú
+    const prevCamp = campFilter.value;
+    const prevOp = opFilter.value;
+
+    // Limpiamos y reconstruimos los menús
+    campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
+    opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
+
+    Array.from(campañasDisponibles).sort().forEach(camp => { campFilter.innerHTML += `<option value="${camp}">${camp}</option>`; });
+    Array.from(operadoresDisponibles).sort().forEach(op => { opFilter.innerHTML += `<option value="${op}">${op}</option>`; });
+
+    // Si lo que estaba seleccionado sigue existiendo en estas fechas, lo mantenemos; si no, volvemos a "all"
+    campFilter.value = campañasDisponibles.has(prevCamp) ? prevCamp : 'all';
+    opFilter.value = operadoresDisponibles.has(prevOp) ? prevOp : 'all';
+
+    const finalCampaignSelected = campFilter.value;
+    const finalOperatorSelected = opFilter.value;
+
+    // ==========================================
+    // 2. FILTRADO PRINCIPAL DE LOS DATOS
+    // ==========================================
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
-        if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
-        if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
+        if (finalCampaignSelected !== 'all' && colCampaña && row[colCampaña] !== finalCampaignSelected) return false;
+        if (finalOperatorSelected !== 'all' && colOperador && row[colOperador] !== finalOperatorSelected) return false;
         if (start !== null && end !== null && colFecha) {
             if (!row[colFecha]) return false;
-            const rowTime = parseDateSpanish(row[colFecha], row, colFecha); // Pasamos colFecha para activar el Caché
+            const rowTime = parseDateSpanish(row[colFecha], row, colFecha); 
             if (!rowTime) return false; 
             if (rowTime < start || rowTime >= end) return false;
         }
@@ -180,7 +212,7 @@ function procesarYRenderizar() {
     };
 
     const cumpleFiltroAds = (row) => {
-        if (campaignSelected !== 'all' && row['Campaign name'] && row['Campaign name'] !== campaignSelected) return false;
+        if (finalCampaignSelected !== 'all' && row['Campaign name'] && row['Campaign name'] !== finalCampaignSelected) return false;
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
@@ -190,7 +222,7 @@ function procesarYRenderizar() {
 
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
-        contactados: window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha 1er llamada')), // CORRECCIÓN: Filtramos por fecha de llamada, no de entrada
+        contactados: window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha 1er llamada')), 
         llamadas: window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha last call')),
         citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
         shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
