@@ -2,287 +2,185 @@
    EL CEREBRO: DESCARGA, LIMPIEZA Y CÁLCULOS
    ========================================== */
 
-// Declarar AppData al inicio para que no explote si algo carga antes de tiempo
 window.AppData = window.AppData || {};
 
-/* ==========================================
-   SISTEMA GLOBAL DE MANEJO DE ERRORES
-   ========================================== */
-
-// Función para mostrar el modal de error
 function mostrarErrorSistema(problema, ubicacion, solucion) {
     document.getElementById('error-msg').innerText = problema;
     document.getElementById('error-location').innerText = ubicacion;
     document.getElementById('error-fix').innerText = solucion;
     document.getElementById('modal-error').style.display = 'flex';
-    
-    // Si la pantalla de carga estaba activa, la ocultamos
-    document.getElementById('welcome-message').innerHTML = `<span style="color: var(--accent-danger)">Error en el sistema</span>`;
+    const welcome = document.getElementById('welcome-message');
+    if(welcome) welcome.innerHTML = `<span style="color: var(--accent-danger)">Error en el sistema</span>`;
 }
 
-// Cerrar el modal
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('close-error-modal').addEventListener('click', () => {
-        document.getElementById('modal-error').style.display = 'none';
-    });
+    const closeBtn = document.getElementById('close-error-modal');
+    if(closeBtn) closeBtn.addEventListener('click', () => document.getElementById('modal-error').style.display = 'none');
 });
 
-// 1. CAZADOR DE ERRORES DE CÓDIGO (Variables no definidas, sintaxis rota, etc.)
 window.addEventListener('error', function(e) {
-    mostrarErrorSistema(
-        e.message,
-        `Archivo: ${e.filename} (Línea ${e.lineno})`,
-        "Presiona F12 para abrir la consola de desarrollador y buscar el error en rojo. Probablemente falta una coma, hay un error de tipeo, o una variable no existe."
-    );
+    mostrarErrorSistema(e.message, `Archivo: ${e.filename} (Línea ${e.lineno})`, "Presiona F12 para abrir la consola y buscar el error.");
 });
 
-// 2. CAZADOR DE ERRORES ASÍNCRONOS (Promesas, fallos de red, etc.)
 window.addEventListener('unhandledrejection', function(e) {
-    mostrarErrorSistema(
-        "Fallo al comunicarse con los datos externos (Google Sheets).",
-        "Petición de Red / Promesa Rechazada",
-        "1. Verifica que tengas conexión a internet.\n2. Asegúrate de que los enlaces en config.js sean correctos y terminen en 'output=csv'.\n3. Confirma que la hoja de Google Sheets siga estando 'Publicada en la web'."
-    );
+    mostrarErrorSistema("Fallo al comunicarse con los datos externos.", "Promesa Rechazada", "Verifica tu conexión.");
 });
 
-
-// 1. Promesa para envolver PapaParse y hacerlo asíncrono
-function fetchCSV(url) {
-    return new Promise((resolve, reject) => {
-        Papa.parse(url, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) { resolve(results.data); },
-            error: function(err) { reject(err); }
+async function fetchCSV(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+        const textData = await response.text();
+        return new Promise((resolve, reject) => {
+            Papa.parse(textData, { header: true, skipEmptyLines: true, complete: function(results) { resolve(results.data); }, error: function(err) { reject(new Error(err.message)); } });
         });
-    });
+    } catch (error) { throw new Error(`Error al procesar la URL: ${url}.`); }
 }
 
-// 2. Función Maestra de Inicialización
 async function loadAllData() {
     const welcome = document.getElementById('welcome-message');
     if(welcome) welcome.innerText = "Descargando bases de datos...";
     
     try {
-        // Añadimos las dos nuevas hojas a la lista de descargas
-        const [
-            leadsGenerados, leadsContactados, llamadasConectadas, 
-            citasGeneradas, shows, noShows, cancelaCita,
-            leadsAntiguos, metaAds 
-        ] = await Promise.all([
-            fetchCSV(DB_URLS.leadsGenerados),
-            fetchCSV(DB_URLS.leadsContactados),
-            fetchCSV(DB_URLS.llamadasConectadas),
-            fetchCSV(DB_URLS.citasGeneradas),
-            fetchCSV(DB_URLS.shows),
-            fetchCSV(DB_URLS.noShows),
-            fetchCSV(DB_URLS.cancelaCita),
-            fetchCSV(DB_URLS.leadsAntiguos), 
-            fetchCSV(DB_URLS.metaAds)        
+        const [ leadsGenerados, leadsContactados, llamadasConectadas, citasGeneradas, shows, noShows, cancelaCita, leadsAntiguos, metaAds ] = await Promise.all([
+            fetchCSV(DB_URLS.leadsGenerados), fetchCSV(DB_URLS.leadsContactados), fetchCSV(DB_URLS.llamadasConectadas), fetchCSV(DB_URLS.citasGeneradas),
+            fetchCSV(DB_URLS.shows), fetchCSV(DB_URLS.noShows), fetchCSV(DB_URLS.cancelaCita), fetchCSV(DB_URLS.leadsAntiguos), fetchCSV(DB_URLS.metaAds)
         ]);
 
-        // ==========================================
-        // FUSIÓN DE LEADS (Mapeo de Hoja 9 a formato de Hoja 1)
-        // ==========================================
         const leadsAntiguosFormateados = (leadsAntiguos || []).map(row => {
             return {
                 'Fecha entrada lead': row['Lead entry date'] || '',
                 'Hora Generado': row['Lead entry time'] || '',
-                // Unimos Clínica y Tratamiento con un guion
                 'Campaña': `${(row['Clinica'] || '').trim()}-${(row['Tratamiento Solicitado'] || '').trim()}`,
-                // Unimos Nombre y Apellido
                 'Nombre': `${(row['First Name'] || '').trim()} ${(row['Last Name'] || '').trim()}`.trim(),
                 'Numero': row['Phone'] || '',
                 'Cita solictida para': row['Fecha Cita Solicitada'] || '',
                 'Zona Horaria': row['Timezone'] || '',
-                'Ventana operativa SI/NO': '' // Queda vacío porque la hoja antigua no lo tenía
+                'Ventana operativa SI/NO': '' 
             };
         });
 
-        // Juntamos ambos arrays (Los nuevos primero, los antiguos después)
-        const todosLosLeads = [...(leadsGenerados || []), ...leadsAntiguosFormateados];
-
-        // ==========================================
-        // GUARDADO EN MEMORIA GLOBAL
-        // ==========================================
         window.AppData.raw = {
-            leads: todosLosLeads, 
-            contactados: leadsContactados,
-            llamadas: llamadasConectadas, 
-            citas: citasGeneradas,
-            shows: shows, 
-            noShows: noShows, 
-            cancelados: cancelaCita,
-            ads: metaAds 
+            leads: [...(leadsGenerados || []), ...leadsAntiguosFormateados], 
+            contactados: leadsContactados, llamadas: llamadasConectadas, citas: citasGeneradas, shows: shows, noShows: noShows, cancelados: cancelaCita, ads: metaAds 
         };
-
-        console.log("✅ Toda la data descargada con éxito", window.AppData.raw);
         
         poblarFiltros();
         procesarYRenderizar();
 
         const session = JSON.parse(localStorage.getItem('np_session'));
-        if(session && welcome) {
-            welcome.innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
-        }
+        if(session && welcome) welcome.innerHTML = `Bienvenido, <strong>${session.nombre}</strong>`;
 
     } catch (error) {
-        console.error("Detalle técnico del error:", error);
-        mostrarErrorSistema(
-            "Hubo un error al descargar o procesar la información.",
-            "Función loadAllData() en app.js",
-            "Asegúrate de que la URL termine en 'output=csv' y que la hoja sea pública."
-        );
+        console.error(error);
+        mostrarErrorSistema("Hubo un error al descargar la información.", "loadAllData()", "Asegúrate de que la URL termine en 'output=csv'.");
     }
 }
 
-// 3. Llenar Desplegables
 function poblarFiltros() {
-    const campañas = new Set();
-    const operadores = new Set();
-
-    window.AppData.raw.leads.forEach(row => { if(row['Campaña']) campañas.add(row['Campaña'].trim()); });
-    window.AppData.raw.citas.forEach(row => { if(row['Operador']) operadores.add(row['Operador'].trim()); });
+    const campañas = new Set(), operadores = new Set();
+    if(window.AppData.raw.leads) window.AppData.raw.leads.forEach(r => { if(r['Campaña']) campañas.add(r['Campaña'].trim()); });
+    if(window.AppData.raw.citas) window.AppData.raw.citas.forEach(r => { if(r['Operador']) operadores.add(r['Operador'].trim()); });
 
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
+    if(campFilter) campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
+    if(opFilter) opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
 
-    // Limpiar antes de llenar para evitar duplicados
-    campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
-    opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
-
-    Array.from(campañas).sort().forEach(camp => campFilter.innerHTML += `<option value="${camp}">${camp}</option>`);
-    Array.from(operadores).sort().forEach(op => opFilter.innerHTML += `<option value="${op}">${op}</option>`);
+    Array.from(campañas).sort().forEach(camp => { if(campFilter) campFilter.innerHTML += `<option value="${camp}">${camp}</option>`; });
+    Array.from(operadores).sort().forEach(op => { if(opFilter) opFilter.innerHTML += `<option value="${op}">${op}</option>`; });
 }
 
 // ==========================================
-// 4. MOTOR INTELIGENTE DE FECHAS
+// 4. MOTOR INTELIGENTE DE FECHAS CON CACHÉ
 // ==========================================
-
-// Agregamos "row = null" para pasar el contexto de la fila y no lance error de "undefined"
-function parseDateSpanish(dateStr, row = null) {
+function parseDateSpanish(dateStr, row = null, colName = null) {
     if (!dateStr) return null;
+
+    // MAGIA DE RENDIMIENTO: Si ya la procesamos antes, la devolvemos al instante sin calcular
+    if (row && colName && row[`_ts_${colName}`] !== undefined) {
+        return row[`_ts_${colName}`];
+    }
+
     let str = String(dateStr).trim().toLowerCase();
+    const meses = { 'ene':0,'enero':0,'feb':1,'febrero':1,'mar':2,'marzo':2,'abr':3,'abril':3,'may':4,'mayo':4,'jun':5,'junio':5,'jul':6,'julio':6,'ago':7,'agosto':7,'sep':8,'septiembre':8,'oct':9,'octubre':9,'nov':10,'noviembre':10,'dic':11,'diciembre':11 };
+    let finalTime = null;
 
-    const meses = {
-        'ene': 0, 'enero': 0, 'feb': 1, 'febrero': 1, 'mar': 2, 'marzo': 2,
-        'abr': 3, 'abril': 3, 'may': 4, 'mayo': 4, 'jun': 5, 'junio': 5,
-        'jul': 6, 'julio': 6, 'ago': 7, 'agosto': 7, 'sep': 8, 'septiembre': 8,
-        'oct': 9, 'octubre': 9, 'nov': 10, 'noviembre': 10, 'dic': 11, 'diciembre': 11
-    };
-
-    // 1. Primero salvamos el formato de la hoja de Shows ("21 de marzo de 2026")
     if (str.includes(' de ')) {
         const p = str.split(' de ');
-        if (p.length === 3) return new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
-    }
-
-    // 2. Si NO es el formato de Shows, le quitamos la posible hora pegada
-    str = str.split(' ')[0];
-
-    // 3. Evaluamos el formato con barras ("21/03/2026")
-    if (str.includes('/')) {
-        const p = str.split('/');
-        if (p.length >= 3) return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
-    }
-
-    // 4. Formato corto con guiones ("7-jul")
-    if (str.includes('-') && str.split('-').length === 2) {
-        const p = str.split('-');
-        let year = new Date().getFullYear(); 
-        
-        // Extraemos el año de la columna "Cita Programada en" si existe en la misma fila
-        if (row && row['Cita Programada en']) {
-            let strProg = String(row['Cita Programada en']).trim().toLowerCase();
-            if (strProg.includes(' de ')) {
-                let pProg = strProg.split(' de ');
-                if (pProg.length === 3) year = parseInt(pProg[2]);
-            } else if (strProg.includes('/')) {
-                let pProg = strProg.split('/');
-                if (pProg.length >= 3) year = parseInt(pProg[2]);
+        if (p.length === 3) finalTime = new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
+    } else {
+        str = str.split(' ')[0];
+        if (str.includes('/')) {
+            const p = str.split('/');
+            if (p.length >= 3) finalTime = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
+        } else if (str.includes('-') && str.split('-').length === 2) {
+            const p = str.split('-');
+            let year = new Date().getFullYear(); 
+            if (row && row['Cita Programada en']) {
+                let strProg = String(row['Cita Programada en']).trim().toLowerCase();
+                if (strProg.includes(' de ')) { let pProg = strProg.split(' de '); if (pProg.length === 3) year = parseInt(pProg[2]); } 
+                else if (strProg.includes('/')) { let pProg = strProg.split('/'); if (pProg.length >= 3) year = parseInt(pProg[2]); }
+            } else {
+                let tempDate = new Date(year, meses[p[1]], parseInt(p[0]));
+                if (tempDate > new Date()) year--;
             }
+            finalTime = new Date(year, meses[p[1]], parseInt(p[0])).getTime();
         } else {
-            // Fallback de seguridad (Si no hay columna, y es del futuro, restamos 1 año)
-            let tempDate = new Date(year, meses[p[1]], parseInt(p[0]));
-            if (tempDate > new Date()) year--;
+            const fb = new Date(str).getTime();
+            finalTime = isNaN(fb) ? null : fb;
         }
-
-        return new Date(year, meses[p[1]], parseInt(p[0])).getTime();
     }
+
+    // Guardamos en memoria para el próximo filtro
+    if (row && colName && finalTime !== null) { row[`_ts_${colName}`] = finalTime; }
     
-    const fb = new Date(str).getTime();
-    return isNaN(fb) ? null : fb;
+    return finalTime;
 }
 
-// Obtiene el rango de fechas del filtro superior
 function getRangoFechas() {
     const val = document.getElementById('global-date-filter').value;
     let start = null, end = null;
-    const now = new Date(); 
-    now.setHours(0,0,0,0);
+    const now = new Date(); now.setHours(0,0,0,0);
 
     if(val === 'today') { start = now.getTime(); end = now.getTime() + 86400000; }
     else if(val === 'yesterday') { start = now.getTime() - 86400000; end = now.getTime(); }
     else if(val === '7days') { start = now.getTime() - (7 * 86400000); end = now.getTime() + 86400000; }
     else if(val === '14days') { start = now.getTime() - (14 * 86400000); end = now.getTime() + 86400000; }
     else if(val === '30days') { start = now.getTime() - (30 * 86400000); end = now.getTime() + 86400000; }
-    else if(val === 'thisMonth') { 
-        start = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); 
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime(); 
-    }
-    else if(val === 'lastMonth') { 
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(); 
-        end = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); 
-    }
-    else if(val === 'thisYear') { 
-        start = new Date(now.getFullYear(), 0, 1).getTime(); 
-        end = new Date(now.getFullYear() + 1, 0, 1).getTime(); 
-    }
-    // LÓGICA PARA FECHAS PERSONALIZADAS
+    else if(val === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime(); }
+    else if(val === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(); end = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); }
+    else if(val === 'thisYear') { start = new Date(now.getFullYear(), 0, 1).getTime(); end = new Date(now.getFullYear() + 1, 0, 1).getTime(); }
     else if(val === 'custom') {
-        const customStart = document.getElementById('custom-start-date').value;
-        const customEnd = document.getElementById('custom-end-date').value;
-        
-        if (customStart && customEnd) {
-            const [sy, sm, sd] = customStart.split('-');
-            const [ey, em, ed] = customEnd.split('-');
-            start = new Date(sy, sm - 1, sd).getTime();
-            end = new Date(ey, em - 1, ed).getTime() + 86400000; 
+        const cS = document.getElementById('custom-start-date'); const cE = document.getElementById('custom-end-date');
+        if (cS && cE && cS.value && cE.value) {
+            const [sy, sm, sd] = cS.value.split('-'); const [ey, em, ed] = cE.value.split('-');
+            start = new Date(sy, sm - 1, sd).getTime(); end = new Date(ey, em - 1, ed).getTime() + 86400000; 
         }
     }
-    
     return { start, end };
 }
 
-// ==========================================
-// 5. MOTOR DE PROCESAMIENTO Y RENDERIZADO
-// ==========================================
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
-
     const campaignSelected = document.getElementById('global-campaign-filter').value;
     const operatorSelected = document.getElementById('global-operator-filter').value;
     const { start, end } = getRangoFechas();
 
-    // Filtro estándar para Hojas en Español
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
         if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
         if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
-        
         if (start !== null && end !== null && colFecha) {
             if (!row[colFecha]) return false;
-            const rowTime = parseDateSpanish(row[colFecha], row); 
+            const rowTime = parseDateSpanish(row[colFecha], row, colFecha); // Pasamos colFecha para activar el Caché
             if (!rowTime) return false; 
             if (rowTime < start || rowTime >= end) return false;
         }
         return true;
     };
 
-    // Filtro especial para Meta Ads (Inglés)
     const cumpleFiltroAds = (row) => {
         if (campaignSelected !== 'all' && row['Campaign name'] && row['Campaign name'] !== campaignSelected) return false;
-        
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
@@ -290,48 +188,35 @@ function procesarYRenderizar() {
         return true;
     };
 
-    // 5.1 FILTRADO DE TODAS TUS HOJAS REALES
-    const leadsF = window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead'));
-    const contactadosF = window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra'));
-    const llamadasF = window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra'));
-    const citasF = window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada'));
-    const showsF = window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
-    const noShowsF = window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
-    const canceladosF = window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
-    const adsF = (window.AppData.raw.ads || []).filter(cumpleFiltroAds); // <--- Filtro de Meta
-
-    // Empaquetamos todo limpio y filtrado
     const dataFiltrada = {
-        leads: leadsF, contactados: contactadosF, llamadas: llamadasF,
-        citas: citasF, shows: showsF, noShows: noShowsF, cancelados: canceladosF,
-        ads: adsF, // <--- Data de Ads lista para usar
+        leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
+        contactados: window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha 1er llamada')), // CORRECCIÓN: Filtramos por fecha de llamada, no de entrada
+        llamadas: window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha last call')),
+        citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
+        shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
         dateRange: { start, end } 
     };
 
-    // 5.2 LLAMAR A LOS MÓDULOS EXTERNOS
     if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
     if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
     if (typeof renderizarGraficos === 'function') renderizarGraficos(dataFiltrada);
-    if (typeof renderizarAds === 'function') renderizarAds(dataFiltrada); // <--- Llamada al nuevo módulo
+    if (typeof renderizarAds === 'function') renderizarAds(dataFiltrada);
 }
 
-// 6. ESCUCHADORES DE EVENTOS GLOBALES (Tal como tú los tenías)
-
-document.getElementById('global-date-filter').addEventListener('change', function(e) {
+document.addEventListener('DOMContentLoaded', () => {
+    const filterDate = document.getElementById('global-date-filter');
     const customContainer = document.getElementById('custom-date-container');
-    // Pequeña validación por si el contenedor aún no existe en el HTML
-    if (customContainer) {
-        if (e.target.value === 'custom') {
-            customContainer.style.display = 'flex';
-        } else {
-            customContainer.style.display = 'none';
-            procesarYRenderizar();
-        }
+    if(filterDate && customContainer) {
+        filterDate.addEventListener('change', function(e) {
+            if (e.target.value === 'custom') customContainer.style.display = 'flex';
+            else { customContainer.style.display = 'none'; procesarYRenderizar(); }
+        });
     }
+    const els = ['btn-apply-custom-date', 'global-campaign-filter', 'global-operator-filter', 'global-timezone'];
+    els.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener(id.includes('btn') ? 'click' : 'change', procesarYRenderizar); });
+    const btnRef = document.getElementById('btn-refresh');
+    if(btnRef) btnRef.addEventListener('click', loadAllData);
 });
-
-document.getElementById('btn-apply-custom-date').addEventListener('click', procesarYRenderizar);
-document.getElementById('global-campaign-filter').addEventListener('change', procesarYRenderizar);
-document.getElementById('global-operator-filter').addEventListener('change', procesarYRenderizar);
-document.getElementById('global-timezone').addEventListener('change', procesarYRenderizar);
-document.getElementById('btn-refresh').addEventListener('click', loadAllData);
