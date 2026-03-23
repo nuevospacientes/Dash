@@ -118,21 +118,72 @@ function renderizarGraficos(dataFiltrada) {
     }
 
     // ==========================================
-    // 2. DINÁMICA DIARIA (Llamadas por Hora)
+    // 2. DINÁMICA DIARIA (Volumen vs STL por Hora)
     // ==========================================
     const ctxHoras = document.getElementById('chart-horas');
     if (ctxHoras) {
-        let distribucionHoras = new Array(24).fill(0);
-        
-        contactados.forEach(item => {
-            let horaStr = item['Hora 1er llamada'];
+        let volumenEntrada = new Array(24).fill(0);
+        let sumaStl = new Array(24).fill(0);
+        let countStl = new Array(24).fill(0);
+
+        // 2.1 Calcular Volumen de Entrada (Barras Azules)
+        leads.forEach(item => {
+            let horaStr = item['Hora Generado'] || item['Hora entrada'];
             if (horaStr) {
-                let horaNum = parseInt(horaStr.split(':')[0]); 
+                let horaNum = parseInt(String(horaStr).split(':')[0]); 
                 if (!isNaN(horaNum) && horaNum >= 0 && horaNum <= 23) {
-                    distribucionHoras[horaNum]++;
+                    volumenEntrada[horaNum]++;
                 }
             }
         });
+
+        // 2.2 Calcular Speed to Lead Promedio por Hora (Línea Naranja)
+        const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
+        const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
+
+        contactados.forEach(c => {
+            let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
+            let hEntrada = c['Hora Generado'] || c['Hora entrada'];
+            let fLlamada = c['Fecha 1er llamada'];
+            let hLlamada = c['Hora 1er llamada'];
+            let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
+
+            if (fEntrada && hEntrada && fLlamada && hLlamada) {
+                let tEntrada = typeof parseDateSpanish === 'function' ? parseDateSpanish(fEntrada, c) : null;
+                let tLlamada = typeof parseDateSpanish === 'function' ? parseDateSpanish(fLlamada, c) : null;
+
+                if (tEntrada && tLlamada) {
+                    let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
+                    let timeE = parseTime(hEntrada);
+                    let timeL = parseTime(hLlamada);
+
+                    let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
+                    let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
+
+                    let leadOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(leadTz) : 0;
+                    let diffMins = globalOffset - leadOffset;
+
+                    dateE.setMinutes(dateE.getMinutes() + diffMins);
+                    dateL.setMinutes(dateL.getMinutes() + diffMins);
+
+                    let bMinutes = typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dateE, dateL) : 0;
+                    
+                    // En qué hora del día (ya ajustada al dashboard) entró este lead
+                    let horaEntradaAjustada = dateE.getHours();
+                    
+                    if (!isNaN(horaEntradaAjustada) && horaEntradaAjustada >= 0 && horaEntradaAjustada <= 23) {
+                        sumaStl[horaEntradaAjustada] += bMinutes;
+                        countStl[horaEntradaAjustada]++;
+                    }
+                }
+            }
+        });
+
+        // Promediar los minutos
+        let avgStl = new Array(24).fill(0);
+        for(let i=0; i<24; i++){
+            avgStl[i] = countStl[i] > 0 ? Math.round(sumaStl[i] / countStl[i]) : 0;
+        }
 
         let labelsHoras = Array.from({length: 24}, (_, i) => `${i}:00`);
 
@@ -141,21 +192,72 @@ function renderizarGraficos(dataFiltrada) {
             type: 'bar',
             data: {
                 labels: labelsHoras,
-                datasets: [{
-                    label: 'Volumen de 1er Contacto',
-                    data: distribucionHoras,
-                    backgroundColor: 'rgba(59, 107, 250, 0.4)',
-                    borderColor: '#3b6bfa',
-                    borderWidth: 1,
-                    borderRadius: 4
-                }]
+                datasets: [
+                    {
+                        label: 'Speed to Lead (Minutos)',
+                        data: avgStl,
+                        type: 'line', // Forzamos que este dataset sea una línea
+                        borderColor: '#f6ad55', // Naranja
+                        backgroundColor: '#f6ad55',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        yAxisID: 'y1' // Lo anclamos al eje derecho
+                    },
+                    {
+                        label: 'Volumen de Entrada',
+                        data: volumenEntrada,
+                        backgroundColor: 'rgba(59, 107, 250, 0.4)', // Azul
+                        borderColor: '#3b6bfa',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        yAxisID: 'y' // Lo anclamos al eje izquierdo
+                    }
+                ]
             },
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                interaction: { mode: 'index', intersect: false }, // Al pasar el mouse te muestra ambas métricas
+                scales: { 
+                    y: { 
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Nº de Leads' },
+                        beginAtZero: true, 
+                        ticks: { stepSize: 1 } 
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right', // Eje secundario a la derecha
+                        title: { display: true, text: 'Minutos (STL)' },
+                        beginAtZero: true,
+                        grid: { drawOnChartArea: false } // Para que las líneas de fondo no se hagan un desastre
+                    }
+                }
             }
         });
+    }
+
+   // NUEVO: ETIQUETA INTELIGENTE DE DÍA - MES (Para Dinámica Diaria)
+    const dayLabelEl = document.getElementById('chart-day-label');
+    if (dayLabelEl) {
+        if (labelsFechas.length > 0) {
+            let firstD = new Date(labelsFechas[0] + 'T00:00:00');
+            let lastD = new Date(labelsFechas[labelsFechas.length - 1] + 'T00:00:00');
+            
+            const formatShortDate = (d) => `${String(d.getDate()).padStart(2, '0')}-${monthNames[d.getMonth()].toLowerCase()}`;
+            
+            // Si es el mismo día muestra "23-mar", si son varios muestra "01-mar al 23-mar"
+            if (firstD.getTime() === lastD.getTime()) {
+                dayLabelEl.innerText = formatShortDate(firstD);
+            } else {
+                dayLabelEl.innerText = `${formatShortDate(firstD)} al ${formatShortDate(lastD)}`;
+            }
+        } else {
+            dayLabelEl.innerText = "Sin datos";
+        }
     }
 
     // ==========================================
