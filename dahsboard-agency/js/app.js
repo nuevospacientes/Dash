@@ -254,28 +254,37 @@ function getRangoFechas() {
     
     return { start, end };
 }
+
 // ==========================================
 // 5. MOTOR DE PROCESAMIENTO Y RENDERIZADO
 // ==========================================
 function procesarYRenderizar() {
-    // Agregamos window.AppData.raw para evitar errores si carga antes
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
 
     const campaignSelected = document.getElementById('global-campaign-filter').value;
     const operatorSelected = document.getElementById('global-operator-filter').value;
     const { start, end } = getRangoFechas();
 
+    // Filtro estándar para Hojas en Español
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
         if (campaignSelected !== 'all' && colCampaña && row[colCampaña] !== campaignSelected) return false;
         if (operatorSelected !== 'all' && colOperador && row[colOperador] !== operatorSelected) return false;
         
         if (start !== null && end !== null && colFecha) {
             if (!row[colFecha]) return false;
-            
-            // Le pasamos "row" a la función para que no de error
             const rowTime = parseDateSpanish(row[colFecha], row); 
-            
             if (!rowTime) return false; 
+            if (rowTime < start || rowTime >= end) return false;
+        }
+        return true;
+    };
+
+    // Filtro especial para Meta Ads (Inglés)
+    const cumpleFiltroAds = (row) => {
+        if (campaignSelected !== 'all' && row['Campaign name'] && row['Campaign name'] !== campaignSelected) return false;
+        
+        if (start !== null && end !== null && row['Day']) {
+            let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
         }
         return true;
@@ -289,16 +298,13 @@ function procesarYRenderizar() {
     const showsF = window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
     const noShowsF = window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
     const canceladosF = window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita'));
+    const adsF = (window.AppData.raw.ads || []).filter(cumpleFiltroAds); // <--- Filtro de Meta
 
     // Empaquetamos todo limpio y filtrado
     const dataFiltrada = {
-        leads: leadsF,
-        contactados: contactadosF,
-        llamadas: llamadasF,
-        citas: citasF,
-        shows: showsF,
-        noShows: noShowsF,
-        cancelados: canceladosF,
+        leads: leadsF, contactados: contactadosF, llamadas: llamadasF,
+        citas: citasF, shows: showsF, noShows: noShowsF, cancelados: canceladosF,
+        ads: adsF, // <--- Data de Ads lista para usar
         dateRange: { start, end } 
     };
 
@@ -306,6 +312,7 @@ function procesarYRenderizar() {
     if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
     if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
     if (typeof renderizarGraficos === 'function') renderizarGraficos(dataFiltrada);
+    if (typeof renderizarAds === 'function') renderizarAds(dataFiltrada); // <--- Llamada al nuevo módulo
 }
 
 // 6. ESCUCHADORES DE EVENTOS GLOBALES (Tal como tú los tenías)
