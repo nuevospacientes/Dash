@@ -22,82 +22,117 @@ function renderizarVistaGeneral(dataFiltrada) {
     const showRate = tCitas > 0 ? ((tShows / tCitas) * 100).toFixed(1) : 0;
     const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
-    // 4. Obtener Metas configuradas por el usuario (o valores por defecto)
-    const metas = JSON.parse(localStorage.getItem('np_metas')) || {
-        ads: 3000, citas: 100
-    };
+    // 4. Obtener Metas
+    const metas = JSON.parse(localStorage.getItem('np_metas')) || { ads: 3000, citas: 100 };
 
-    // 5. Cálculos Financieros Estimados (Usando el presupuesto mensual objetivo temporalmente)
-    // Más adelante, "inversionActual" vendrá del módulo de Meta Ads.
-    const inversionActual = 0; 
+    // 5. Cálculos Financieros Estimados
+    const inversionActual = 0; // Más adelante vendrá de Meta Ads
     const cpl = tLeads > 0 ? (metas.ads / tLeads).toFixed(2) : 0;
     const cpa = tCitas > 0 ? (metas.ads / tCitas).toFixed(2) : 0;
 
     // ==========================================
-    // RENDERIZADO EN PANTALLA
+    // A. RENDERIZAR TARJETAS DEL EMBUDO
     // ==========================================
-
-    // A. Actualizar las 5 tarjetas de Rendimiento del Embudo
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
-    
-   
     if(kpiCards.length >= 5) {
-        // Tarjeta 1 (Índice 0): Leads
         kpiCards[0].querySelector('.metric-value').innerText = tLeads;
         kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
         
-        // Tarjeta 2 (Índice 1): Contactados
         kpiCards[1].querySelector('.metric-value').innerText = tContactados;
         kpiCards[1].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
         
-        // Tarjeta 3 (Índice 2): Citas
         kpiCards[2].querySelector('.metric-value').innerText = tCitas;
         kpiCards[2].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa}`;
         
-        // Tarjeta 4 (Índice 3): Shows
         kpiCards[3].querySelector('.metric-value').innerText = tShows;
         kpiCards[3].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
         
-        // Tarjeta 5 (Índice 4): Ventas Cerradas
         kpiCards[4].querySelector('.metric-value').innerText = tVentas;
         kpiCards[4].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
     }
 
-    // B. Actualizar Barras de Progreso (Top de la pantalla)
+    // ==========================================
+    // B. RENDERIZAR BARRAS DE PROGRESO
+    // ==========================================
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
     const progCitas = metas.citas > 0 ? (tCitas / metas.citas) * 100 : 0;
 
     const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
     if(topCards.length >= 2) {
-        // Barra Ads
         topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${metas.ads.toLocaleString('en-US')}`;
         topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progAds, 100)}%`;
         
-        // Barra Citas
         topCards[1].querySelector('.metric-value').innerText = `${tCitas} / ${metas.citas}`;
         topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
     }
 
-    // C. Distribución de Métodos de Pago
-    let pagos = { transferencia: 0, tarjeta: 0, efectivo: 0, financiamiento: 0 };
-    ventas.forEach(v => {
-        let metodo = (v['Deposito'] || '').toLowerCase();
-        if (metodo.includes('transferencia')) pagos.transferencia++;
-        else if (metodo.includes('tarjeta') || metodo.includes('link')) pagos.tarjeta++;
-        else if (metodo.includes('efectivo')) pagos.efectivo++;
-        else if (metodo.includes('financiamiento') || metodo.includes('cuotas')) pagos.financiamiento++;
-        else pagos.transferencia++; 
+    // ==========================================
+    // C. DISTRIBUCIÓN DE MÉTODOS DE PAGO (DINÁMICO E INTERACTIVO)
+    // ==========================================
+    const paymentContainer = document.getElementById('payment-distribution-container');
+    if (paymentContainer) {
+        paymentContainer.innerHTML = ''; // Limpiamos las tarjetas anteriores
+
+        if (tVentas === 0) {
+            paymentContainer.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 20px;">No hay ventas registradas con los filtros actuales.</div>`;
+        } else {
+            // Agrupamos dinámicamente
+            const metodosAgrupados = {};
+
+            ventas.forEach(v => {
+                let metodoRaw = (v['Deposito'] || '').trim();
+                let mLower = metodoRaw.toLowerCase();
+                let metodoFinal = metodoRaw;
+
+                // Inteligencia de separación
+                if (mLower.includes('transferencia')) metodoFinal = 'Transferencia';
+                else if (mLower.includes('link')) metodoFinal = 'Link de Pago';
+                else if (mLower.includes('tarjeta')) metodoFinal = 'Tarjeta';
+                else if (mLower.includes('efectivo')) metodoFinal = 'Efectivo';
+                else if (mLower.includes('financiamiento') || mLower.includes('cuota')) metodoFinal = 'Financiamiento';
+                else if (metodoRaw !== '') metodoFinal = metodoRaw.charAt(0).toUpperCase() + metodoRaw.slice(1); // Si escriben algo nuevo como Zelle
+
+                if (!metodosAgrupados[metodoFinal]) metodosAgrupados[metodoFinal] = [];
+                metodosAgrupados[metodoFinal].push(v);
+            });
+
+            // Creamos las tarjetas HTML por cada método que exista
+            Object.keys(metodosAgrupados).sort().forEach(metodo => {
+                const listaVentas = metodosAgrupados[metodo];
+                const porcentaje = ((listaVentas.length / tVentas) * 100).toFixed(1);
+
+                const card = document.createElement('div');
+                card.className = 'kpi-card clickable-card';
+                card.innerHTML = `
+                    <div class="metric-title">${metodo}</div>
+                    <div class="metric-value text-success">${listaVentas.length}</div>
+                    <div class="metric-subtitle">${porcentaje}% del total filtrado</div>
+                `;
+
+                // Al hacer clic, abrimos el popup con la lista
+                card.addEventListener('click', () => abrirModalPagos(metodo, listaVentas));
+                paymentContainer.appendChild(card);
+            });
+        }
+    }
+}
+
+// Función Global para gestionar el Modal de Detalles de Pago
+function abrirModalPagos(metodo, listaVentas) {
+    document.getElementById('payment-modal-title').innerText = metodo;
+    const tbody = document.querySelector('#payment-details-table tbody');
+    tbody.innerHTML = '';
+
+    listaVentas.forEach(v => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${v['Fecha Visita'] || '-'}</td>
+            <td><strong>${v['Nombre'] || 'Desconocido'}</strong></td>
+            <td style="color: var(--text-muted); font-size: 0.85rem;">${v['Campaña'] || '-'}</td>
+            <td><span style="background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${v['Operador'] || '-'}</span></td>
+        `;
+        tbody.appendChild(tr);
     });
 
-    const distCards = document.querySelectorAll('#payment-distribution-container .kpi-card');
-    if (distCards.length >= 4) {
-        const updatePago = (idx, valor) => {
-            distCards[idx].querySelector('.metric-value').innerText = valor;
-            distCards[idx].querySelector('.metric-subtitle').innerText = tVentas > 0 ? `${((valor/tVentas)*100).toFixed(1)}% del total` : `0% del total`;
-        };
-        updatePago(0, pagos.transferencia);
-        updatePago(1, pagos.tarjeta);
-        updatePago(2, pagos.efectivo);
-        updatePago(3, pagos.financiamiento);
-    }
+    document.getElementById('modal-payment-details').style.display = 'flex';
 }
