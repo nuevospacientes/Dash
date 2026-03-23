@@ -9,6 +9,7 @@ const DB_URLS = {
     // 1. Embudos y Leads
     leadsGenerados: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1334038379&single=true&output=csv",
     leadsContactados: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=0&single=true&output=csv",
+    leadsAntiguos: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=482573997&single=true&output=csv",
     
     // 2. Calidad de Llamadas
     llamadasConectadas: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1951435987&single=true&output=csv",
