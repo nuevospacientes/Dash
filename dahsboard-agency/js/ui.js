@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
             
-            // Encontrar el botón exacto que se hizo clic (incluso si se hizo clic en el icono de adentro)
+            // Encontrar el botón exacto que se hizo clic
             const targetBtn = e.target.closest('.tab-btn');
             targetBtn.classList.add('active');
             
@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSettings.addEventListener('click', () => {
             modalSettings.style.display = 'flex';
             
-            // NUEVO: Leer los datos guardados en memoria al abrir el modal
             const metas = JSON.parse(localStorage.getItem('np_metas')) || {
                 ads: 3000, facturacion: 15000, citas: 100, stl: 5, llamadas: 50
             };
@@ -70,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (saveSettings) {
         saveSettings.addEventListener('click', () => {
-            // NUEVO: Capturar los valores escritos por el usuario y guardarlos
             const metas = {
                 ads: parseFloat(document.getElementById('meta-ads').value) || 0,
                 facturacion: parseFloat(document.getElementById('meta-facturacion').value) || 0,
@@ -82,20 +80,36 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('np_metas', JSON.stringify(metas));
             modalSettings.style.display = 'none';
             
-            // Recalcular todo el dashboard instantáneamente
             if (typeof procesarYRenderizar === 'function') {
                 procesarYRenderizar();
             }
         });
     }
-});
 
-   // 4. LÓGICA PARA CERRAR EL MODAL DE DETALLE DE PAGOS
+    // Cerrar el popup de metas al hacer clic en el fondo oscuro
+    window.addEventListener('click', (e) => {
+        if (e.target === modalSettings) {
+            modalSettings.style.display = 'none';
+        }
+    });
+
+    // ==========================================
+    // 4. LÓGICA DEL MODAL DE DETALLE DE PAGOS
+    // ==========================================
     const closePaymentModal = document.getElementById('close-payment-modal');
     const modalPaymentDetails = document.getElementById('modal-payment-details');
 
-    if (closePaymentModal && modalPaymentDetails) {
+    if (closePaymentModal) {
         closePaymentModal.addEventListener('click', () => {
             modalPaymentDetails.style.display = 'none';
         });
     }
+
+    // Cerrar el popup de pagos al hacer clic en el fondo oscuro
+    window.addEventListener('click', (e) => {
+        if (e.target === modalPaymentDetails) {
+            modalPaymentDetails.style.display = 'none';
+        }
+    });
+
+});
