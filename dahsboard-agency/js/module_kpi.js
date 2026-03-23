@@ -112,8 +112,8 @@ function renderizarVistaGeneral(dataFiltrada) {
 
             if (tEntrada && tLlamada) {
                 let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-                let timeE = parseTime(hEntrada);
-                let timeL = parseTime(hLlamada);
+                let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
+                let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
 
                 let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
                 let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
