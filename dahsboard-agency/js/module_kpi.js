@@ -2,6 +2,74 @@
    MÓDULO DE KPIs (VISTA GENERAL)
    ========================================== */
 
+// ----------------------------------------------------
+// MOTOR 1: DETECTOR Y CONVERSOR DE ZONAS HORARIAS
+// ----------------------------------------------------
+function getTzOffsetMins(timeZone) {
+    try {
+        // Usa la API nativa de internacionalización del navegador para sacar el GMT de cualquier país
+        const str = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }).format(new Date());
+        const match = str.match(/GMT([+-])(\d+)(?::(\d+))?/);
+        if (!match) return 0;
+        const sign = match[1] === '+' ? 1 : -1;
+        const hours = parseInt(match[2], 10);
+        const mins = match[3] ? parseInt(match[3], 10) : 0;
+        return sign * (hours * 60 + mins);
+    } catch(e) {
+        // Si hay error o no viene zona, asumimos GMT-5 (Perú/Colombia/EST)
+        return -300; 
+    }
+}
+
+// ----------------------------------------------------
+// MOTOR 2: CÁLCULO ESTRICTO DE HORARIO COMERCIAL (9 AM - 6 PM)
+// ----------------------------------------------------
+function getBusinessMinutes(dateStart, dateEnd) {
+    let current = new Date(dateStart);
+    let end = new Date(dateEnd);
+    let minutes = 0;
+
+    // REGLA DE ENTRADA: Si entra antes de las 9am, el reloj arranca a las 9am.
+    if (current.getHours() < 9) { 
+        current.setHours(9, 0, 0, 0); 
+    }
+    // REGLA DE NOCHE: Si entra a las 6pm o más tarde, el reloj arranca a las 9am del DÍA SIGUIENTE.
+    else if (current.getHours() >= 18) { 
+        current.setDate(current.getDate() + 1); 
+        current.setHours(9, 0, 0, 0); 
+    }
+
+    // LÍMITE DE SALIDA: Si por algún motivo la llamada se registró de noche, cortamos a las 6pm.
+    if (end.getHours() >= 18) { 
+        end.setHours(18, 0, 0, 0); 
+    }
+    else if (end.getHours() < 9) { 
+        end.setDate(end.getDate() - 1); 
+        end.setHours(18, 0, 0, 0); 
+    }
+
+    // Si después de los ajustes, la hora de entrada superó a la de salida, tardaron 0 minutos hábiles.
+    if (current > end) return 0;
+
+    // BUCLE DE DÍAS: Sumamos 9 horas (540 mins) por cada día intermedio que haya pasado.
+    while (current.toDateString() !== end.toDateString()) {
+        let endOfDay = new Date(current);
+        endOfDay.setHours(18, 0, 0, 0);
+        minutes += (endOfDay - current) / 60000;
+        
+        current.setDate(current.getDate() + 1);
+        current.setHours(9, 0, 0, 0);
+    }
+    
+    // Sumamos los minutos del último día
+    minutes += (end - current) / 60000;
+    
+    return minutes > 0 ? minutes : 0;
+}
+
+// ----------------------------------------------------
+// FUNCIÓN PRINCIPAL DE RENDERIZADO
+// ----------------------------------------------------
 function renderizarVistaGeneral(dataFiltrada) {
     // 1. Conteo Base
     const tLeads = dataFiltrada.leads.length;
@@ -22,40 +90,46 @@ function renderizarVistaGeneral(dataFiltrada) {
     const showRate = tCitas > 0 ? ((tShows / tCitas) * 100).toFixed(1) : 0;
     const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
-    // 4. Algoritmo de Speed To Lead (Promedio)
+    // 4. Algoritmo de Speed To Lead (Cruce de Zonas + Horario Comercial)
     let totalMinutes = 0;
     let validStlCount = 0;
+    
+    const globalTz = document.getElementById('global-timezone').value;
+    const globalOffset = getTzOffsetMins(globalTz);
 
     dataFiltrada.contactados.forEach(c => {
         let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
         let hEntrada = c['Hora Generado'] || c['Hora entrada'];
         let fLlamada = c['Fecha 1er llamada'];
         let hLlamada = c['Hora 1er llamada'];
+        
+        // Buscamos la zona horaria del lead (si no existe, asumimos la global para no romper)
+        let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
 
         if (fEntrada && hEntrada && fLlamada && hLlamada) {
             let tEntrada = parseDateSpanish(fEntrada, c);
             let tLlamada = parseDateSpanish(fLlamada, c);
 
             if (tEntrada && tLlamada) {
-                let parseTime = (timeStr) => {
-                    let parts = String(timeStr).split(':');
-                    return { h: parseInt(parts[0]||0), m: parseInt(parts[1]||0), s: parseInt(parts[2]||0) };
-                };
-                
+                let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
                 let timeE = parseTime(hEntrada);
                 let timeL = parseTime(hLlamada);
 
-                let dateE = new Date(tEntrada);
-                dateE.setHours(timeE.h, timeE.m, timeE.s);
+                let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
+                let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
 
-                let dateL = new Date(tLlamada);
-                dateL.setHours(timeL.h, timeL.m, timeL.s);
+                // AJUSTE: Transformamos el tiempo local del lead al tiempo del dashboard seleccionado
+                let leadOffset = getTzOffsetMins(leadTz);
+                let diffMins = globalOffset - leadOffset;
 
-                let diffMs = dateL.getTime() - dateE.getTime();
-                if (diffMs >= 0) {
-                    totalMinutes += diffMs / 60000; // Convertir a minutos
-                    validStlCount++;
-                }
+                dateE.setMinutes(dateE.getMinutes() + diffMins);
+                dateL.setMinutes(dateL.getMinutes() + diffMins);
+
+                // FILTRO: Aplicamos la protección de 9 AM a 6 PM sobre el horario ya estandarizado
+                let bMinutes = getBusinessMinutes(dateE, dateL);
+                
+                totalMinutes += bMinutes;
+                validStlCount++;
             }
         }
     });
@@ -70,7 +144,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     const cpa = tCitas > 0 ? (metas.ads / tCitas).toFixed(2) : 0;
 
     // ==========================================
-    // A. RENDERIZAR TARJETAS (Ahora son 6)
+    // A. RENDERIZAR TARJETAS 
     // ==========================================
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
     if(kpiCards.length >= 6) {
@@ -78,7 +152,6 @@ function renderizarVistaGeneral(dataFiltrada) {
         kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
         
         kpiCards[1].querySelector('.metric-value').innerText = stlDisplay;
-        // La tarjeta 1 (STL) ya tiene su texto base quemado en el HTML
         
         kpiCards[2].querySelector('.metric-value').innerText = tContactados;
         kpiCards[2].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
@@ -153,7 +226,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     }
 }
 
-// Modal de Detalles (Intacto)
+// Modal de Detalles 
 function abrirModalPagos(metodo, listaVentas) {
     document.getElementById('payment-modal-title').innerText = metodo;
     const tbody = document.querySelector('#payment-details-table tbody');
