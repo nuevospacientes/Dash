@@ -2,7 +2,12 @@
    MÓDULO DE PERFORMANCE (TRACKER & FUNNEL)
    ========================================== */
 
-const TICKET_PROMEDIO_TRACKER = 500; // Para calcular ROAS en el desglose
+// Estado global para guardar la memoria de ordenamiento de las tablas
+window.trackerSortState = window.trackerSortState || {
+    op: { col: 'citas', asc: false },
+    camp: { col: 'leads', asc: false },
+    breakdown: { col: 'inv', asc: false }
+};
 
 function renderizarCallTracker(dataFiltrada) {
     const llamadas = dataFiltrada.llamadas || [];
@@ -12,7 +17,7 @@ function renderizarCallTracker(dataFiltrada) {
     const shows = dataFiltrada.shows || [];
     const ads = dataFiltrada.ads || [];
 
-    // 1. MAPEO INVERSO DE OPERADORES (Ingeniería Inversa desde Citas)
+    // 1. MAPEO INVERSO DE OPERADORES
     const numeroAOperador = {};
     citas.forEach(c => {
         let num = String(c['Numero'] || '').trim();
@@ -39,27 +44,29 @@ function renderizarCallTracker(dataFiltrada) {
         kpiCards[4].querySelector('.metric-value').innerText = llamadas.length;
     }
 
-    // 3. AGRUPACIONES PARA RANKINGS Y DESGLOSE
+    // 3. INICIALIZAR Y AGRUPAR DATOS
     const statsOp = {};
     const statsCamp = {};
     let totalClicks = 0;
 
-    // Procesar Clics e Inversión desde Meta Ads
+    const initCamp = (c) => {
+        if(!c) return; c = c.trim();
+        if(!statsCamp[c]) statsCamp[c] = { name: c, inv: 0, clicks: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, sumaStl: 0, stlCount: 0, ops: new Set() };
+    };
+    const initOp = (o) => {
+        if(!o || o === 'Sin Asignar') return; o = o.trim();
+        if(!statsOp[o]) statsOp[o] = { name: o, citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
+    };
+
     ads.forEach(ad => {
-        let cName = (ad['Campaign name'] || 'Desconocida').trim();
-        if (!statsCamp[cName]) statsCamp[cName] = { inv: 0, clicks: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, sumaStl: 0, stlCount: 0, ops: new Set() };
-        
+        let c = (ad['Campaign name'] || 'Desconocida').trim(); initCamp(c);
         let spent = parseFloat(String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "")) || 0;
         let clk = parseInt(ad['Clicks (all)'] || 0) || 0;
-        
-        statsCamp[cName].inv += spent;
-        statsCamp[cName].clicks += clk;
-        totalClicks += clk;
+        statsCamp[c].inv += spent; statsCamp[c].clicks += clk; totalClicks += clk;
     });
 
     leads.forEach(l => {
-        let c = (l['Campaña'] || 'Desconocida').trim();
-        if (!statsCamp[c]) statsCamp[c] = { inv: 0, clicks: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, sumaStl: 0, stlCount: 0, ops: new Set() };
+        let c = (l['Campaña'] || 'Desconocida').trim(); initCamp(c);
         statsCamp[c].leads++;
     });
 
@@ -67,16 +74,13 @@ function renderizarCallTracker(dataFiltrada) {
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
     contactados.forEach(c => {
-        let camp = (c['Campaña'] || 'Desconocida').trim();
-        // Aplicar el mapeo inverso aquí
+        let camp = (c['Campaña'] || 'Desconocida').trim(); initCamp(camp);
         let num = String(c['Numero'] || '').trim();
         let op = c['Operador'] ? c['Operador'].trim() : (numeroAOperador[num] || 'Sin Asignar');
+        initOp(op);
         
-        if (statsCamp[camp]) statsCamp[camp].contactados++;
-        if (op !== 'Sin Asignar') {
-            if (!statsOp[op]) statsOp[op] = { citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
-        }
-
+        statsCamp[camp].contactados++;
+        
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
         let tE = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha entrada lead'] || c['Fecha Lead entra'], c, 'Fecha entrada lead') : null;
         let tL = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha 1er llamada'], c, 'Fecha 1er llamada') : null;
@@ -94,50 +98,39 @@ function renderizarCallTracker(dataFiltrada) {
 
             let bMins = typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dE, dL) : 0;
             
-            if (statsCamp[camp]) { statsCamp[camp].sumaStl += bMins; statsCamp[camp].stlCount++; }
-            if (op !== 'Sin Asignar' && statsOp[op]) { statsOp[op].sumaStl += bMins; statsOp[op].stlCount++; }
+            statsCamp[camp].sumaStl += bMins; statsCamp[camp].stlCount++;
+            if (op !== 'Sin Asignar') { statsOp[op].sumaStl += bMins; statsOp[op].stlCount++; }
         }
     });
 
     citas.forEach(c => {
-        let op = (c['Operador'] || 'Sin Asignar').trim();
-        let camp = (c['Campaña'] || 'Desconocida').trim();
+        let op = (c['Operador'] || 'Sin Asignar').trim(); initOp(op);
+        let camp = (c['Campaña'] || 'Desconocida').trim(); initCamp(camp);
         
-        if (op !== 'Sin Asignar') {
-            if (!statsOp[op]) statsOp[op] = { citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
-            statsOp[op].citas++;
-        }
-        if (statsCamp[camp]) { 
-            statsCamp[camp].citas++; 
-            if(op !== 'Sin Asignar') statsCamp[camp].ops.add(op);
-        }
+        if (op !== 'Sin Asignar') statsOp[op].citas++;
+        statsCamp[camp].citas++; 
+        if(op !== 'Sin Asignar') statsCamp[camp].ops.add(op);
     });
 
-    // Mapeamos llamadas solo para contar la actividad del operador
     llamadas.forEach(ll => {
         let num = String(ll['Numero'] || '').trim();
         let op = numeroAOperador[num] || 'Sin Asignar';
-        if(op !== 'Sin Asignar') {
-            if (!statsOp[op]) statsOp[op] = { citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
-            statsOp[op].llamadas++;
-        }
+        if(op !== 'Sin Asignar') { initOp(op); statsOp[op].llamadas++; }
     });
 
-    let totalVentas = 0;
+    let totalVentas = shows.filter(s => {
+        const dep = (s['Deposito'] || '').toLowerCase().trim();
+        return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
+    }).length;
+
     shows.forEach(s => {
-        let op = (s['Operador'] || 'Sin Asignar').trim();
-        let camp = (s['Campaña'] || 'Desconocida').trim();
-        let dep = (s['Deposito'] || '').toLowerCase().trim();
-        let esVenta = (dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito');
-
-        if (op !== 'Sin Asignar' && statsOp[op]) statsOp[op].shows++;
-        if (statsCamp[camp]) {
-            statsCamp[camp].shows++;
-            if (esVenta) { statsCamp[camp].ventas++; totalVentas++; }
-        }
+        let op = (s['Operador'] || 'Sin Asignar').trim(); initOp(op);
+        let camp = (s['Campaña'] || 'Desconocida').trim(); initCamp(camp);
+        if (op !== 'Sin Asignar') statsOp[op].shows++;
+        statsCamp[camp].shows++;
     });
 
-    // 4. ACTUALIZAR EMBUDO (FUNNEL)
+    // 4. ACTUALIZAR EMBUDO (Absoluta coincidencia con Vista General)
     const fLeads = leads.length;
     const fCitas = citas.length;
     const fShows = shows.length;
@@ -154,19 +147,44 @@ function renderizarCallTracker(dataFiltrada) {
     document.getElementById('track-drop-3').innerText = `↳ ${fCitas>0 ? ((fShows/fCitas)*100).toFixed(1) : 0}% asistencia`;
     document.getElementById('track-drop-4').innerText = `↳ ${fShows>0 ? ((fVentas/fShows)*100).toFixed(1) : 0}% cierre`;
 
-    // 5. RENDERIZAR TABLAS RANKING
-    const renderRanking = (dataObj, tbodyId, btnId, isCamp) => {
+    // 5. MOTOR DE ORDENAMIENTO DE TABLAS
+    const sortArray = (arr, state) => {
+        return arr.sort((a, b) => {
+            let valA = a[state.col]; let valB = b[state.col];
+            // Manejo de strings
+            if (typeof valA === 'string') return state.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            // Manejo numérico
+            return state.asc ? valA - valB : valB - valA;
+        });
+    };
+
+    const attachSortListeners = (tableId, key) => {
+        document.querySelectorAll(`#${tableId} th[data-sort]`).forEach(th => {
+            th.onclick = () => {
+                const col = th.getAttribute('data-sort');
+                if(window.trackerSortState[key].col === col) {
+                    window.trackerSortState[key].asc = !window.trackerSortState[key].asc;
+                } else {
+                    window.trackerSortState[key].col = col;
+                    window.trackerSortState[key].asc = false;
+                }
+                // Si se hace clic, re-renderizamos solo este módulo
+                renderizarCallTracker(dataFiltrada);
+            };
+        });
+    };
+
+    // 6. RENDERIZAR TABLAS RANKING
+    const renderRanking = (dataRows, tbodyId, btnId, isCamp) => {
         const tbody = document.getElementById(tbodyId); const btn = document.getElementById(btnId);
         if (!tbody) return; tbody.innerHTML = '';
-        let rows = Object.keys(dataObj).map(name => ({ name, ...dataObj[name] })).filter(r => isCamp ? r.leads > 0 : r.citas > 0);
-        rows.sort((a, b) => isCamp ? b.leads - a.leads : b.citas - a.citas);
 
-        if (rows.length === 0) {
+        if (dataRows.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No hay datos suficientes</td></tr>';
             if (btn) btn.style.display = 'none'; return;
         }
 
-        rows.forEach((row, index) => {
+        dataRows.forEach((row, index) => {
             let tr = document.createElement('tr');
             if (index >= 3) tr.style.display = 'none';
             tr.className = index >= 3 ? 'hidden-row' : '';
@@ -183,49 +201,57 @@ function renderizarCallTracker(dataFiltrada) {
         });
 
         if (btn) {
-            if (rows.length > 3) {
-                btn.style.display = 'block'; btn.innerHTML = `Ver todos (${rows.length}) <i class="fa-solid fa-chevron-down"></i>`;
+            if (dataRows.length > 3) {
+                btn.style.display = 'block'; btn.innerHTML = `Ver todos (${dataRows.length}) <i class="fa-solid fa-chevron-down"></i>`;
                 let newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
                 let expanded = false;
                 newBtn.addEventListener('click', () => {
                     expanded = !expanded;
                     tbody.querySelectorAll('.hidden-row').forEach(r => r.style.display = expanded ? 'table-row' : 'none');
-                    newBtn.innerHTML = expanded ? `Ver menos <i class="fa-solid fa-chevron-up"></i>` : `Ver todos (${rows.length}) <i class="fa-solid fa-chevron-down"></i>`;
+                    newBtn.innerHTML = expanded ? `Ver menos <i class="fa-solid fa-chevron-up"></i>` : `Ver todos (${dataRows.length}) <i class="fa-solid fa-chevron-down"></i>`;
                 });
             } else { btn.style.display = 'none'; }
         }
     };
 
-    renderRanking(statsOp, 'tracker-op-table', 'btn-toggle-op', false);
-    renderRanking(statsCamp, 'tracker-camp-table', 'btn-toggle-camp', true);
+    let opRows = Object.values(statsOp).filter(r => r.citas > 0 || r.llamadas > 0);
+    let campRows = Object.values(statsCamp).filter(r => r.leads > 0);
+    
+    opRows = sortArray(opRows, window.trackerSortState.op);
+    campRows = sortArray(campRows, window.trackerSortState.camp);
 
-    // 6. RENDERIZAR TABLA DE DESGLOSE
+    renderRanking(opRows, 'tracker-op-table', 'btn-toggle-op', false);
+    renderRanking(campRows, 'tracker-camp-table', 'btn-toggle-camp', true);
+    
+    attachSortListeners('tracker-op-table', 'op');
+    attachSortListeners('tracker-camp-table', 'camp');
+
+    // 7. RENDERIZAR TABLA DE DESGLOSE (Con Ordenamiento)
     const breakTbody = document.querySelector('#tracker-breakdown-table tbody');
     if(breakTbody) {
         breakTbody.innerHTML = '';
-        let bRows = Object.keys(statsCamp).map(name => ({ name, ...statsCamp[name] })).filter(r => r.inv > 0 || r.leads > 0);
-        bRows.sort((a, b) => b.inv - a.inv); // Ordenar por los que más gastan
+        let bRows = Object.values(statsCamp).filter(r => r.inv > 0 || r.leads > 0 || r.citas > 0);
+        bRows.forEach(r => r.opsList = Array.from(r.ops).join(', ') || '-');
+        
+        bRows = sortArray(bRows, window.trackerSortState.breakdown);
 
         if (bRows.length === 0) {
             breakTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Sin actividad en este rango</td></tr>';
         } else {
             bRows.forEach(r => {
-                let ingresos = r.ventas * TICKET_PROMEDIO_TRACKER;
-                let roas = r.inv > 0 ? (ingresos / r.inv) : 0;
-                let opsList = Array.from(r.ops).join(', ');
-                
                 breakTbody.innerHTML += `
                     <tr>
                         <td><strong>${r.name}</strong></td>
-                        <td style="color: var(--text-muted); font-size: 0.85rem;">${opsList || '-'}</td>
+                        <td style="color: var(--text-muted); font-size: 0.85rem;">${r.opsList}</td>
                         <td style="color: var(--accent-danger);">$${r.inv.toFixed(2)}</td>
                         <td>${r.leads}</td>
-                        <td>${r.citas}</td>
-                        <td><strong class="text-success">${r.ventas}</strong></td>
-                        <td style="color: ${roas >= 2 ? 'var(--accent-success)' : 'var(--text-main)'}; font-weight: bold;">${roas > 0 ? roas.toFixed(2)+'x' : '0.00x'}</td>
+                        <td><span class="text-warning">${r.contactados}</span></td>
+                        <td><strong class="text-success">${r.citas}</strong></td>
+                        <td>${r.shows}</td>
                     </tr>
                 `;
             });
         }
+        attachSortListeners('tracker-breakdown-table', 'breakdown');
     }
 }
