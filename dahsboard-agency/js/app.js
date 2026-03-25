@@ -60,7 +60,6 @@ async function loadAllData() {
             };
         });
 
-        // CORRECCIÓN: Aquí guardamos la data pura tal cual viene de los CSVs
         window.AppData.raw = {
             leads: [...(leadsGenerados || []), ...leadsAntiguosFormateados], 
             contactados: leadsContactados, 
@@ -83,15 +82,9 @@ async function loadAllData() {
     }
 }
 
-// ==========================================
-// 4. MOTOR INTELIGENTE DE FECHAS CON CACHÉ
-// ==========================================
 function parseDateSpanish(dateStr, row = null, colName = null) {
     if (!dateStr) return null;
-
-    if (row && colName && row[`_ts_${colName}`] !== undefined) {
-        return row[`_ts_${colName}`];
-    }
+    if (row && colName && row[`_ts_${colName}`] !== undefined) { return row[`_ts_${colName}`]; }
 
     let str = String(dateStr).trim().toLowerCase();
     const meses = { 'ene':0,'enero':0,'feb':1,'febrero':1,'mar':2,'marzo':2,'abr':3,'abril':3,'may':4,'mayo':4,'jun':5,'junio':5,'jul':6,'julio':6,'ago':7,'agosto':7,'sep':8,'septiembre':8,'oct':9,'octubre':9,'nov':10,'noviembre':10,'dic':11,'diciembre':11 };
@@ -155,9 +148,6 @@ function procesarYRenderizar() {
     
     const { start, end } = getRangoFechas();
     
-    // ==========================================
-    // 1. RECONSTRUCCIÓN DINÁMICA DE DESPLEGABLES
-    // ==========================================
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
 
@@ -181,9 +171,7 @@ function procesarYRenderizar() {
 
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
-
-    const prevCamp = campFilter.value;
-    const prevOp = opFilter.value;
+    const prevCamp = campFilter.value; const prevOp = opFilter.value;
 
     campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
     opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
@@ -197,9 +185,6 @@ function procesarYRenderizar() {
     const finalCampaignSelected = campFilter.value;
     const finalOperatorSelected = opFilter.value;
 
-    // ==========================================
-    // 2. FILTRADO PRINCIPAL DE LOS DATOS
-    // ==========================================
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
         if (finalCampaignSelected !== 'all' && colCampaña && row[colCampaña] !== finalCampaignSelected) return false;
         if (finalOperatorSelected !== 'all' && colOperador && row[colOperador] !== finalOperatorSelected) return false;
@@ -221,11 +206,15 @@ function procesarYRenderizar() {
         return true;
     };
 
-    // CORRECCIÓN: Aquí es donde aplicamos el filtro correcto para llamadas ('Fecha Lead entra')
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
+        // Hoja 2 (Intentos de llamada) -> Filtramos por "Fecha 1er llamada" (el momento del intento)
         contactados: window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha 1er llamada')), 
-        llamadas: window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra')),
+        // Hoja 3 (Llamadas Conectadas) -> Filtramos por "Fecha last call" o si falta, "Fecha Lead entra"
+        llamadas: window.AppData.raw.llamadas.filter(r => {
+            let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
+            return cumpleFiltro(r, 'Campaña', null, col);
+        }),
         citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
         shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
