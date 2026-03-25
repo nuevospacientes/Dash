@@ -1,101 +1,228 @@
 /* ==========================================
-   MÓDULO 2: CALL TRACKER Y RENDIMIENTO
+   MÓDULO DE PERFORMANCE (TRACKER & FUNNEL)
    ========================================== */
 
+const TICKET_PROMEDIO_TRACKER = 500; // Para calcular ROAS en el desglose
+
 function renderizarCallTracker(dataFiltrada) {
-    const llamadas = dataFiltrada.llamadas;
-    const contactados = dataFiltrada.contactados;
-    const citas = dataFiltrada.citas;
-    const shows = dataFiltrada.shows;
+    const llamadas = dataFiltrada.llamadas || [];
+    const contactados = dataFiltrada.contactados || [];
+    const leads = dataFiltrada.leads || [];
+    const citas = dataFiltrada.citas || [];
+    const shows = dataFiltrada.shows || [];
+    const ads = dataFiltrada.ads || [];
 
-    // 1. Calidad de Llamadas (Pick up, Connection, Efectiva)
-    let totalLlamadas = llamadas.length;
-    let pickup = 0, connection = 0, efectiva = 0;
-
-    llamadas.forEach(ll => {
-        let duracion = parseInt(ll['Duracion Lllamda']) || 0;
-        if (duracion > 5) pickup++;
-        if (duracion > 15) connection++;
-        if (duracion > 60) efectiva++;
+    // 1. MAPEO INVERSO DE OPERADORES (Ingeniería Inversa desde Citas)
+    const numeroAOperador = {};
+    citas.forEach(c => {
+        let num = String(c['Numero'] || '').trim();
+        let op = (c['Operador'] || '').trim();
+        if (num !== '' && op !== '') numeroAOperador[num] = op;
     });
 
-    const getRate = (val) => totalLlamadas > 0 ? ((val / totalLlamadas) * 100).toFixed(1) : 0;
+    // 2. KPIs SUPERIORES (Calidad de Llamadas)
+    let pickUpCount = 0, connectionCount = 0, effectiveCount = 0;
+    llamadas.forEach(ll => {
+        let duracion = parseFloat(ll['Duracion Lllamda']) || 0;
+        if (duracion > 5) pickUpCount++;
+        if (duracion > 15) connectionCount++;
+        if (duracion > 60) effectiveCount++;
+    });
 
-    // 2. Speed to Lead (En minutos)
-    let totalMinutosSTL = 0;
-    let leadsValidosSTL = 0;
+    const kpiCards = document.querySelectorAll('#view-tracker .grid-cards .kpi-card');
+    if (kpiCards.length >= 5) {
+        const globalStlEl = document.querySelector('#kpi-container-general .kpi-card:nth-child(2) .metric-value');
+        kpiCards[0].querySelector('.metric-value').innerText = globalStlEl ? globalStlEl.innerText : '0 min';
+        kpiCards[1].querySelector('.metric-value').innerText = llamadas.length > 0 ? ((pickUpCount / llamadas.length) * 100).toFixed(1) + '%' : '0%';
+        kpiCards[2].querySelector('.metric-value').innerText = llamadas.length > 0 ? ((connectionCount / llamadas.length) * 100).toFixed(1) + '%' : '0%';
+        kpiCards[3].querySelector('.metric-value').innerText = llamadas.length > 0 ? ((effectiveCount / llamadas.length) * 100).toFixed(1) + '%' : '0%';
+        kpiCards[4].querySelector('.metric-value').innerText = llamadas.length;
+    }
+
+    // 3. AGRUPACIONES PARA RANKINGS Y DESGLOSE
+    const statsOp = {};
+    const statsCamp = {};
+    let totalClicks = 0;
+
+    // Procesar Clics e Inversión desde Meta Ads
+    ads.forEach(ad => {
+        let cName = (ad['Campaign name'] || 'Desconocida').trim();
+        if (!statsCamp[cName]) statsCamp[cName] = { inv: 0, clicks: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, sumaStl: 0, stlCount: 0, ops: new Set() };
+        
+        let spent = parseFloat(String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "")) || 0;
+        let clk = parseInt(ad['Clicks (all)'] || 0) || 0;
+        
+        statsCamp[cName].inv += spent;
+        statsCamp[cName].clicks += clk;
+        totalClicks += clk;
+    });
+
+    leads.forEach(l => {
+        let c = (l['Campaña'] || 'Desconocida').trim();
+        if (!statsCamp[c]) statsCamp[c] = { inv: 0, clicks: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, sumaStl: 0, stlCount: 0, ops: new Set() };
+        statsCamp[c].leads++;
+    });
+
+    const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
+    const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
     contactados.forEach(c => {
-        let fechaEntrada = c['Fecha Lead entra'] + " " + c['Hora entrada'];
-        let fechaLlamada = c['Fecha 1er llamada'] + " " + c['Hora 1er llamada'];
+        let camp = (c['Campaña'] || 'Desconocida').trim();
+        // Aplicar el mapeo inverso aquí
+        let num = String(c['Numero'] || '').trim();
+        let op = c['Operador'] ? c['Operador'].trim() : (numeroAOperador[num] || 'Sin Asignar');
         
-        let d1 = parseDateSpanish(fechaEntrada);
-        let d2 = parseDateSpanish(fechaLlamada);
+        if (statsCamp[camp]) statsCamp[camp].contactados++;
+        if (op !== 'Sin Asignar') {
+            if (!statsOp[op]) statsOp[op] = { citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
+        }
 
-        if (d1 && d2 && d2 >= d1) {
-            let diffMins = (d2 - d1) / (1000 * 60);
-            // Filtro básico para ignorar leads contactados al día siguiente de manera irreal
-            if (diffMins >= 0 && diffMins < 1440) { 
-                totalMinutosSTL += diffMins;
-                leadsValidosSTL++;
-            }
+        let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
+        let tE = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha entrada lead'] || c['Fecha Lead entra'], c, 'Fecha entrada lead') : null;
+        let tL = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha 1er llamada'], c, 'Fecha 1er llamada') : null;
+
+        if (tE && tL) {
+            let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
+            let pE = parseTime(c['Hora Generado'] || c['Hora entrada']);
+            let pL = parseTime(c['Hora 1er llamada']);
+            
+            let dE = new Date(tE); dE.setHours(pE.h, pE.m, pE.s);
+            let dL = new Date(tL); dL.setHours(pL.h, pL.m, pL.s);
+            
+            let diffMins = globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(leadTz) : 0);
+            dE.setMinutes(dE.getMinutes() + diffMins); dL.setMinutes(dL.getMinutes() + diffMins);
+
+            let bMins = typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dE, dL) : 0;
+            
+            if (statsCamp[camp]) { statsCamp[camp].sumaStl += bMins; statsCamp[camp].stlCount++; }
+            if (op !== 'Sin Asignar' && statsOp[op]) { statsOp[op].sumaStl += bMins; statsOp[op].stlCount++; }
         }
     });
 
-    let avgSTL = leadsValidosSTL > 0 ? (totalMinutosSTL / leadsValidosSTL).toFixed(0) : 0;
-
-    // 3. Inyectar KPIs de Tracking
-    const trackerContainer = document.querySelector('#view-tracker .grid-cards');
-    if (trackerContainer) {
-        trackerContainer.innerHTML = `
-            <div class="kpi-card"><div class="metric-title">Speed To Lead Promedio</div><div class="metric-value">${avgSTL} <span style="font-size:1rem">min</span></div></div>
-            <div class="kpi-card"><div class="metric-title">Total Llamadas Emitidas</div><div class="metric-value">${totalLlamadas}</div></div>
-            <div class="kpi-card"><div class="metric-title">Pick Up Rate (>5s)</div><div class="metric-value">${getRate(pickup)}%</div></div>
-            <div class="kpi-card"><div class="metric-title">Connection Rate (>15s)</div><div class="metric-value">${getRate(connection)}%</div></div>
-            <div class="kpi-card"><div class="metric-title">Conversación Efectiva (>60s)</div><div class="metric-value text-success">${getRate(efectiva)}%</div></div>
-        `;
-    }
-
-    // 4. Leaderboard de Operadores
-    let operadoresStats = {};
-    
-    // Contar Citas por Operador
     citas.forEach(c => {
-        let op = c['Operador'] || 'Sin Asignar';
-        if (!operadoresStats[op]) operadoresStats[op] = { citas: 0, shows: 0 };
-        operadoresStats[op].citas++;
+        let op = (c['Operador'] || 'Sin Asignar').trim();
+        let camp = (c['Campaña'] || 'Desconocida').trim();
+        
+        if (op !== 'Sin Asignar') {
+            if (!statsOp[op]) statsOp[op] = { citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
+            statsOp[op].citas++;
+        }
+        if (statsCamp[camp]) { 
+            statsCamp[camp].citas++; 
+            if(op !== 'Sin Asignar') statsCamp[camp].ops.add(op);
+        }
     });
 
-    // Contar Shows por Operador
+    // Mapeamos llamadas solo para contar la actividad del operador
+    llamadas.forEach(ll => {
+        let num = String(ll['Numero'] || '').trim();
+        let op = numeroAOperador[num] || 'Sin Asignar';
+        if(op !== 'Sin Asignar') {
+            if (!statsOp[op]) statsOp[op] = { citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
+            statsOp[op].llamadas++;
+        }
+    });
+
+    let totalVentas = 0;
     shows.forEach(s => {
-        let op = s['Operador'] || 'Sin Asignar';
-        if (operadoresStats[op]) operadoresStats[op].shows++;
+        let op = (s['Operador'] || 'Sin Asignar').trim();
+        let camp = (s['Campaña'] || 'Desconocida').trim();
+        let dep = (s['Deposito'] || '').toLowerCase().trim();
+        let esVenta = (dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito');
+
+        if (op !== 'Sin Asignar' && statsOp[op]) statsOp[op].shows++;
+        if (statsCamp[camp]) {
+            statsCamp[camp].shows++;
+            if (esVenta) { statsCamp[camp].ventas++; totalVentas++; }
+        }
     });
 
-    // Convertir a Array y Ordenar por Citas
-    let rankArray = Object.keys(operadoresStats).map(op => {
-        return { nombre: op, citas: operadoresStats[op].citas, shows: operadoresStats[op].shows };
-    }).sort((a, b) => b.citas - a.citas);
+    // 4. ACTUALIZAR EMBUDO (FUNNEL)
+    const fLeads = leads.length;
+    const fCitas = citas.length;
+    const fShows = shows.length;
+    const fVentas = totalVentas;
 
-    // Inyectar Tabla
-    const tbody = document.querySelector('#tracker-table tbody');
-    if (tbody) {
-        tbody.innerHTML = '';
-        if(rankArray.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No hay datos para este filtro</td></tr>';
+    document.getElementById('track-funnel-clicks').innerText = totalClicks.toLocaleString();
+    document.getElementById('track-funnel-leads').innerText = fLeads.toLocaleString();
+    document.getElementById('track-funnel-citas').innerText = fCitas.toLocaleString();
+    document.getElementById('track-funnel-shows').innerText = fShows.toLocaleString();
+    document.getElementById('track-funnel-ventas').innerText = fVentas.toLocaleString();
+
+    document.getElementById('track-drop-1').innerText = `↳ ${totalClicks>0 ? ((fLeads/totalClicks)*100).toFixed(1) : 0}% conversión a Lead`;
+    document.getElementById('track-drop-2').innerText = `↳ ${fLeads>0 ? ((fCitas/fLeads)*100).toFixed(1) : 0}% booking rate`;
+    document.getElementById('track-drop-3').innerText = `↳ ${fCitas>0 ? ((fShows/fCitas)*100).toFixed(1) : 0}% asistencia`;
+    document.getElementById('track-drop-4').innerText = `↳ ${fShows>0 ? ((fVentas/fShows)*100).toFixed(1) : 0}% cierre`;
+
+    // 5. RENDERIZAR TABLAS RANKING
+    const renderRanking = (dataObj, tbodyId, btnId, isCamp) => {
+        const tbody = document.getElementById(tbodyId); const btn = document.getElementById(btnId);
+        if (!tbody) return; tbody.innerHTML = '';
+        let rows = Object.keys(dataObj).map(name => ({ name, ...dataObj[name] })).filter(r => isCamp ? r.leads > 0 : r.citas > 0);
+        rows.sort((a, b) => isCamp ? b.leads - a.leads : b.citas - a.citas);
+
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No hay datos suficientes</td></tr>';
+            if (btn) btn.style.display = 'none'; return;
+        }
+
+        rows.forEach((row, index) => {
+            let tr = document.createElement('tr');
+            if (index >= 3) tr.style.display = 'none';
+            tr.className = index >= 3 ? 'hidden-row' : '';
+            let pos = index === 0 ? '🥇 1' : index === 1 ? '🥈 2' : index === 2 ? '🥉 3' : `${index + 1}`;
+            let stlMins = row.stlCount > 0 ? Math.round(row.sumaStl / row.stlCount) : 0;
+            let stlTxt = stlMins < 60 ? `${stlMins} min` : `${Math.floor(stlMins/60)}h ${stlMins%60}m`;
+
+            if (isCamp) {
+                tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td>${row.leads}</td> <td><span class="text-warning">${row.leads>0?((row.contactados/row.leads)*100).toFixed(1):0}%</span></td> <td><span class="text-success">${row.citas} (${row.leads>0?((row.citas/row.leads)*100).toFixed(1):0}%)</span></td> <td>${row.stlCount>0?stlTxt:'-'}</td>`;
+            } else {
+                tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td><span class="text-success">${row.citas}</span></td> <td>${row.shows}</td> <td style="color: var(--text-muted);">${row.stlCount>0?stlTxt:'-'}</td> <td style="color: var(--text-muted);">${row.llamadas}</td>`;
+            }
+            tbody.appendChild(tr);
+        });
+
+        if (btn) {
+            if (rows.length > 3) {
+                btn.style.display = 'block'; btn.innerHTML = `Ver todos (${rows.length}) <i class="fa-solid fa-chevron-down"></i>`;
+                let newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
+                let expanded = false;
+                newBtn.addEventListener('click', () => {
+                    expanded = !expanded;
+                    tbody.querySelectorAll('.hidden-row').forEach(r => r.style.display = expanded ? 'table-row' : 'none');
+                    newBtn.innerHTML = expanded ? `Ver menos <i class="fa-solid fa-chevron-up"></i>` : `Ver todos (${rows.length}) <i class="fa-solid fa-chevron-down"></i>`;
+                });
+            } else { btn.style.display = 'none'; }
+        }
+    };
+
+    renderRanking(statsOp, 'tracker-op-table', 'btn-toggle-op', false);
+    renderRanking(statsCamp, 'tracker-camp-table', 'btn-toggle-camp', true);
+
+    // 6. RENDERIZAR TABLA DE DESGLOSE
+    const breakTbody = document.querySelector('#tracker-breakdown-table tbody');
+    if(breakTbody) {
+        breakTbody.innerHTML = '';
+        let bRows = Object.keys(statsCamp).map(name => ({ name, ...statsCamp[name] })).filter(r => r.inv > 0 || r.leads > 0);
+        bRows.sort((a, b) => b.inv - a.inv); // Ordenar por los que más gastan
+
+        if (bRows.length === 0) {
+            breakTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Sin actividad en este rango</td></tr>';
         } else {
-            rankArray.forEach((op, index) => {
-                let showRateOp = op.citas > 0 ? ((op.shows / op.citas) * 100).toFixed(1) : 0;
-                let medalla = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+            bRows.forEach(r => {
+                let ingresos = r.ventas * TICKET_PROMEDIO_TRACKER;
+                let roas = r.inv > 0 ? (ingresos / r.inv) : 0;
+                let opsList = Array.from(r.ops).join(', ');
                 
-                tbody.innerHTML += `
+                breakTbody.innerHTML += `
                     <tr>
-                        <td style="font-weight: bold; font-size: 1.2rem;">${medalla}</td>
-                        <td style="font-weight: bold; color: var(--text-main);">${op.nombre}</td>
-                        <td class="text-success font-bold">${op.citas}</td>
-                        <td>${op.shows}</td>
-                        <td>-- min</td>
-                        <td>${showRateOp}% (Show Rate)</td>
+                        <td><strong>${r.name}</strong></td>
+                        <td style="color: var(--text-muted); font-size: 0.85rem;">${opsList || '-'}</td>
+                        <td style="color: var(--accent-danger);">$${r.inv.toFixed(2)}</td>
+                        <td>${r.leads}</td>
+                        <td>${r.citas}</td>
+                        <td><strong class="text-success">${r.ventas}</strong></td>
+                        <td style="color: ${roas >= 2 ? 'var(--accent-success)' : 'var(--text-main)'}; font-weight: bold;">${roas > 0 ? roas.toFixed(2)+'x' : '0.00x'}</td>
                     </tr>
                 `;
             });
