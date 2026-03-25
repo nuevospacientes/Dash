@@ -60,12 +60,18 @@ async function loadAllData() {
             };
         });
 
+        // CORRECCIÓN: Aquí guardamos la data pura tal cual viene de los CSVs
         window.AppData.raw = {
             leads: [...(leadsGenerados || []), ...leadsAntiguosFormateados], 
-            contactados: leadsContactados, llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra')), citas: citasGeneradas, shows: shows, noShows: noShows, cancelados: cancelaCita, ads: metaAds 
+            contactados: leadsContactados, 
+            llamadas: llamadasConectadas, 
+            citas: citasGeneradas, 
+            shows: shows, 
+            noShows: noShows, 
+            cancelados: cancelaCita, 
+            ads: metaAds 
         };
         
-        // Ya no llamamos a poblarFiltros() estático, el renderizado dinámico se encarga
         procesarYRenderizar();
 
         const session = JSON.parse(localStorage.getItem('np_session'));
@@ -155,7 +161,6 @@ function procesarYRenderizar() {
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
 
-    // Verificamos qué campañas tuvieron leads en estas fechas
     window.AppData.raw.leads.forEach(r => {
         let esValida = true;
         if (start !== null && end !== null) {
@@ -165,7 +170,6 @@ function procesarYRenderizar() {
         if (esValida && r['Campaña']) campañasDisponibles.add(r['Campaña'].trim());
     });
 
-    // Verificamos qué operadores generaron citas en estas fechas
     window.AppData.raw.citas.forEach(r => {
         let esValida = true;
         if (start !== null && end !== null) {
@@ -178,18 +182,15 @@ function procesarYRenderizar() {
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
 
-    // Memorizamos lo que el usuario tenía seleccionado antes de reconstruir el menú
     const prevCamp = campFilter.value;
     const prevOp = opFilter.value;
 
-    // Limpiamos y reconstruimos los menús
     campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
     opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
 
     Array.from(campañasDisponibles).sort().forEach(camp => { campFilter.innerHTML += `<option value="${camp}">${camp}</option>`; });
     Array.from(operadoresDisponibles).sort().forEach(op => { opFilter.innerHTML += `<option value="${op}">${op}</option>`; });
 
-    // Si lo que estaba seleccionado sigue existiendo en estas fechas, lo mantenemos; si no, volvemos a "all"
     campFilter.value = campañasDisponibles.has(prevCamp) ? prevCamp : 'all';
     opFilter.value = operadoresDisponibles.has(prevOp) ? prevOp : 'all';
 
@@ -220,10 +221,11 @@ function procesarYRenderizar() {
         return true;
     };
 
+    // CORRECCIÓN: Aquí es donde aplicamos el filtro correcto para llamadas ('Fecha Lead entra')
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
         contactados: window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha 1er llamada')), 
-        llamadas: window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha last call')),
+        llamadas: window.AppData.raw.llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra')),
         citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
         shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
