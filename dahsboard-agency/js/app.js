@@ -62,7 +62,7 @@ async function loadAllData() {
 
         window.AppData.raw = {
             leads: [...(leadsGenerados || []), ...leadsAntiguosFormateados], 
-            contactados: leadsContactados, llamadas: llamadasConectadas, citas: citasGeneradas, shows: shows, noShows: noShows, cancelados: cancelaCita, ads: metaAds 
+            contactados: leadsContactados, llamadas.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha Lead entra')), citas: citasGeneradas, shows: shows, noShows: noShows, cancelados: cancelaCita, ads: metaAds 
         };
         
         // Ya no llamamos a poblarFiltros() estático, el renderizado dinámico se encarga
