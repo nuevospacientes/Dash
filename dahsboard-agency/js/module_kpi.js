@@ -22,47 +22,50 @@ function getTzOffsetMins(timeZone) {
 }
 
 // ----------------------------------------------------
-// MOTOR 2: CÁLCULO ESTRICTO DE HORARIO COMERCIAL (9 AM - 6 PM)
+// MOTOR 2: CÁLCULO ESTRICTO DE HORARIO COMERCIAL (Skipea Domingos)
 // ----------------------------------------------------
 function getBusinessMinutes(dateStart, dateEnd) {
     let current = new Date(dateStart);
     let end = new Date(dateEnd);
     let minutes = 0;
 
-    // REGLA DE ENTRADA: Si entra antes de las 9am, el reloj arranca a las 9am.
-    if (current.getHours() < 9) { 
-        current.setHours(9, 0, 0, 0); 
+    // Si el lead entra un Domingo (0), el reloj arranca el Lunes a las 9 AM
+    while (current.getDay() === 0) { 
+        current.setDate(current.getDate() + 1);
+        current.setHours(9, 0, 0, 0);
     }
-    // REGLA DE NOCHE: Si entra a las 6pm o más tarde, el reloj arranca a las 9am del DÍA SIGUIENTE.
+
+    if (current.getHours() < 9) { current.setHours(9, 0, 0, 0); }
     else if (current.getHours() >= 18) { 
         current.setDate(current.getDate() + 1); 
         current.setHours(9, 0, 0, 0); 
+        while (current.getDay() === 0) { 
+            current.setDate(current.getDate() + 1);
+            current.setHours(9, 0, 0, 0);
+        }
     }
 
-    // LÍMITE DE SALIDA: Si por algún motivo la llamada se registró de noche, cortamos a las 6pm.
-    if (end.getHours() >= 18) { 
-        end.setHours(18, 0, 0, 0); 
-    }
+    if (end.getHours() >= 18) { end.setHours(18, 0, 0, 0); }
     else if (end.getHours() < 9) { 
         end.setDate(end.getDate() - 1); 
         end.setHours(18, 0, 0, 0); 
     }
 
-    // Si después de los ajustes, la hora de entrada superó a la de salida, tardaron 0 minutos hábiles.
     if (current > end) return 0;
 
-    // BUCLE DE DÍAS: Sumamos 9 horas (540 mins) por cada día intermedio que haya pasado.
     while (current.toDateString() !== end.toDateString()) {
-        let endOfDay = new Date(current);
-        endOfDay.setHours(18, 0, 0, 0);
-        minutes += (endOfDay - current) / 60000;
-        
+        if (current.getDay() !== 0) {
+            let endOfDay = new Date(current);
+            endOfDay.setHours(18, 0, 0, 0);
+            minutes += (endOfDay - current) / 60000;
+        }
         current.setDate(current.getDate() + 1);
         current.setHours(9, 0, 0, 0);
     }
     
-    // Sumamos los minutos del último día
-    minutes += (end - current) / 60000;
+    if (current.getDay() !== 0) { 
+        minutes += (end - current) / 60000;
+    }
     
     return minutes > 0 ? minutes : 0;
 }
@@ -73,7 +76,15 @@ function getBusinessMinutes(dateStart, dateEnd) {
 function renderizarVistaGeneral(dataFiltrada) {
     // 1. Conteo Base
     const tLeads = dataFiltrada.leads.length;
-    const tContactados = dataFiltrada.contactados.length;
+    
+    // CORRECCIÓN: Contamos Leads Contactados ÚNICOS (Personas, ej. 211 en vez de 484)
+    const leadsContactadosSet = new Set();
+    dataFiltrada.contactados.forEach(c => {
+        let id = String(c['Numero'] || c['Nombre'] || '').trim();
+        if (id !== '') leadsContactadosSet.add(id);
+    });
+    const tContactados = leadsContactadosSet.size;
+
     const tCitas = dataFiltrada.citas.length;
     const tShows = dataFiltrada.shows.length;
     
@@ -91,13 +102,15 @@ function renderizarVistaGeneral(dataFiltrada) {
     const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
     // 4. Algoritmo de Speed To Lead (Cruce de Zonas + Horario Comercial)
-    let totalMinutes = 0;
-    let validStlCount = 0;
+    let stlMap = {}; 
     
     const globalTz = document.getElementById('global-timezone').value;
     const globalOffset = getTzOffsetMins(globalTz);
 
     dataFiltrada.contactados.forEach(c => {
+        let id = String(c['Numero'] || c['Nombre'] || '').trim();
+        if (id === '') return;
+
         let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
         let hEntrada = c['Hora Generado'] || c['Hora entrada'];
         let fLlamada = c['Fecha 1er llamada'];
@@ -115,7 +128,6 @@ function renderizarVistaGeneral(dataFiltrada) {
                 // Función que convierte "14:30:00" en {h: 14, m: 30, s: 0}
                 let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
                 
-                // ¡AQUÍ FALTABAN ESTAS DOS LÍNEAS VITALES!
                 let timeE = parseTime(hEntrada);
                 let timeL = parseTime(hLlamada);
 
@@ -132,11 +144,16 @@ function renderizarVistaGeneral(dataFiltrada) {
                 // FILTRO: Aplicamos la protección de 9 AM a 6 PM sobre el horario ya estandarizado
                 let bMinutes = getBusinessMinutes(dateE, dateL);
                 
-                totalMinutes += bMinutes;
-                validStlCount++;
+                // CORRECCIÓN STL: Guardar solo el intento con menor tiempo de respuesta por persona
+                if (stlMap[id] === undefined || bMinutes < stlMap[id]) {
+                    stlMap[id] = bMinutes;
+                }
             }
         }
     });
+
+    let validStlCount = Object.keys(stlMap).length;
+    let totalMinutes = Object.values(stlMap).reduce((a, b) => a + b, 0);
 
     let avgStlMinutes = validStlCount > 0 ? Math.round(totalMinutes / validStlCount) : 0;
     let stlDisplay = avgStlMinutes < 60 ? `${avgStlMinutes} min` : `${Math.floor(avgStlMinutes/60)}h ${avgStlMinutes%60}m`;
