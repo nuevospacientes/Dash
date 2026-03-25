@@ -44,7 +44,7 @@ function renderizarCallTracker(dataFiltrada) {
         kpiCards[4].querySelector('.metric-value').innerText = llamadas.length;
     }
 
-    // 3. INICIALIZAR Y AGRUPAR DATOS
+    // 3. INICIALIZAR Y AGRUPAR DATOS (Con Escudos de Seguridad)
     const statsOp = {};
     const statsCamp = {};
     let totalClicks = 0;
@@ -130,7 +130,7 @@ function renderizarCallTracker(dataFiltrada) {
         statsCamp[camp].shows++;
     });
 
-    // 4. ACTUALIZAR EMBUDO (Absoluta coincidencia con Vista General)
+    // 4. ACTUALIZAR EMBUDO 
     const fLeads = leads.length;
     const fCitas = citas.length;
     const fShows = shows.length;
@@ -151,9 +151,7 @@ function renderizarCallTracker(dataFiltrada) {
     const sortArray = (arr, state) => {
         return arr.sort((a, b) => {
             let valA = a[state.col]; let valB = b[state.col];
-            // Manejo de strings
             if (typeof valA === 'string') return state.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            // Manejo numérico
             return state.asc ? valA - valB : valB - valA;
         });
     };
@@ -168,7 +166,6 @@ function renderizarCallTracker(dataFiltrada) {
                     window.trackerSortState[key].col = col;
                     window.trackerSortState[key].asc = false;
                 }
-                // Si se hace clic, re-renderizamos solo este módulo
                 renderizarCallTracker(dataFiltrada);
             };
         });
@@ -226,7 +223,7 @@ function renderizarCallTracker(dataFiltrada) {
     attachSortListeners('tracker-op-table', 'op');
     attachSortListeners('tracker-camp-table', 'camp');
 
-    // 7. RENDERIZAR TABLA DE DESGLOSE (Con Ordenamiento)
+    // 7. RENDERIZAR TABLA DE DESGLOSE
     const breakTbody = document.querySelector('#tracker-breakdown-table tbody');
     if(breakTbody) {
         breakTbody.innerHTML = '';
