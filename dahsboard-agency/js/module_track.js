@@ -2,22 +2,22 @@
    MÓDULO DE PERFORMANCE (TRACKER & FUNNEL)
    ========================================== */
 
-// Estado global para guardar la memoria de ordenamiento de las tablas
 window.trackerSortState = window.trackerSortState || {
     op: { col: 'citas', asc: false },
     camp: { col: 'leads', asc: false },
     breakdown: { col: 'inv', asc: false }
 };
 
+const TICKET_PROMEDIO_TRACKER = 500;
+
 function renderizarCallTracker(dataFiltrada) {
-    const llamadas = dataFiltrada.llamadas || [];
-    const contactados = dataFiltrada.contactados || [];
+    const llamadas = dataFiltrada.llamadas || []; // Conectadas (~50)
+    const contactados = dataFiltrada.contactados || []; // Emitidas (~484)
     const leads = dataFiltrada.leads || [];
     const citas = dataFiltrada.citas || [];
     const shows = dataFiltrada.shows || [];
     const ads = dataFiltrada.ads || [];
 
-    // 1. MAPEO INVERSO DE OPERADORES
     const numeroAOperador = {};
     citas.forEach(c => {
         let num = String(c['Numero'] || '').trim();
@@ -25,7 +25,10 @@ function renderizarCallTracker(dataFiltrada) {
         if (num !== '' && op !== '') numeroAOperador[num] = op;
     });
 
-    // 2. KPIs SUPERIORES (Calidad de Llamadas)
+    // TOTAL DE INTENTOS = Filas en Hoja 2 (484)
+    let totalLlamadasEmitidas = contactados.length; 
+
+    // Calidad tomada desde las conectadas reales (Hoja 3)
     let pickUpCount = 0, connectionCount = 0, effectiveCount = 0;
     llamadas.forEach(ll => {
         let duracion = parseFloat(ll['Duracion Lllamda']) || 0;
@@ -38,24 +41,29 @@ function renderizarCallTracker(dataFiltrada) {
     if (kpiCards.length >= 5) {
         const globalStlEl = document.querySelector('#kpi-container-general .kpi-card:nth-child(2) .metric-value');
         kpiCards[0].querySelector('.metric-value').innerText = globalStlEl ? globalStlEl.innerText : '0 min';
-        kpiCards[1].querySelector('.metric-value').innerText = llamadas.length > 0 ? ((pickUpCount / llamadas.length) * 100).toFixed(1) + '%' : '0%';
-        kpiCards[2].querySelector('.metric-value').innerText = llamadas.length > 0 ? ((connectionCount / llamadas.length) * 100).toFixed(1) + '%' : '0%';
-        kpiCards[3].querySelector('.metric-value').innerText = llamadas.length > 0 ? ((effectiveCount / llamadas.length) * 100).toFixed(1) + '%' : '0%';
-        kpiCards[4].querySelector('.metric-value').innerText = llamadas.length;
+        
+        // El porcentaje es: ¿De los 484 intentos, cuántos duraron más de 15s?
+        let pPick = totalLlamadasEmitidas > 0 ? (pickUpCount / totalLlamadasEmitidas) * 100 : 0;
+        let pConn = totalLlamadasEmitidas > 0 ? (connectionCount / totalLlamadasEmitidas) * 100 : 0;
+        let pEff = totalLlamadasEmitidas > 0 ? (effectiveCount / totalLlamadasEmitidas) * 100 : 0;
+
+        kpiCards[1].querySelector('.metric-value').innerText = pPick.toFixed(1) + '%';
+        kpiCards[2].querySelector('.metric-value').innerText = pConn.toFixed(1) + '%';
+        kpiCards[3].querySelector('.metric-value').innerText = pEff.toFixed(1) + '%';
+        kpiCards[4].querySelector('.metric-value').innerText = totalLlamadasEmitidas;
     }
 
-    // 3. INICIALIZAR Y AGRUPAR DATOS (Con Escudos de Seguridad)
     const statsOp = {};
     const statsCamp = {};
     let totalClicks = 0;
 
     const initCamp = (c) => {
         if(!c) return; c = c.trim();
-        if(!statsCamp[c]) statsCamp[c] = { name: c, inv: 0, clicks: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, sumaStl: 0, stlCount: 0, ops: new Set() };
+        if(!statsCamp[c]) statsCamp[c] = { name: c, inv: 0, clicks: 0, leads: 0, contactadosSet: new Set(), citas: 0, shows: 0, ventas: 0, stlMap: {}, ops: new Set(), llamadas: 0 };
     };
     const initOp = (o) => {
         if(!o || o === 'Sin Asignar') return; o = o.trim();
-        if(!statsOp[o]) statsOp[o] = { name: o, citas: 0, shows: 0, llamadas: 0, sumaStl: 0, stlCount: 0 };
+        if(!statsOp[o]) statsOp[o] = { name: o, citas: 0, shows: 0, llamadas: 0, stlMap: {} };
     };
 
     ads.forEach(ad => {
@@ -73,19 +81,22 @@ function renderizarCallTracker(dataFiltrada) {
     const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
+    // Procesar emisiones y STL de rankings
     contactados.forEach(c => {
         let camp = (c['Campaña'] || 'Desconocida').trim(); initCamp(camp);
-        let num = String(c['Numero'] || '').trim();
+        let num = String(c['Numero'] || c['Nombre'] || '').trim();
         let op = c['Operador'] ? c['Operador'].trim() : (numeroAOperador[num] || 'Sin Asignar');
         initOp(op);
         
-        statsCamp[camp].contactados++;
+        statsCamp[camp].llamadas++;
+        if (num !== '') statsCamp[camp].contactadosSet.add(num);
+        if (op !== 'Sin Asignar') statsOp[op].llamadas++;
         
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
         let tE = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha entrada lead'] || c['Fecha Lead entra'], c, 'Fecha entrada lead') : null;
         let tL = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha 1er llamada'], c, 'Fecha 1er llamada') : null;
 
-        if (tE && tL) {
+        if (tE && tL && num !== '') {
             let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
             let pE = parseTime(c['Hora Generado'] || c['Hora entrada']);
             let pL = parseTime(c['Hora 1er llamada']);
@@ -98,10 +109,23 @@ function renderizarCallTracker(dataFiltrada) {
 
             let bMins = typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dE, dL) : 0;
             
-            statsCamp[camp].sumaStl += bMins; statsCamp[camp].stlCount++;
-            if (op !== 'Sin Asignar') { statsOp[op].sumaStl += bMins; statsOp[op].stlCount++; }
+            // Guardar solo el más rápido para las tablas
+            if (statsCamp[camp].stlMap[num] === undefined || bMins < statsCamp[camp].stlMap[num]) statsCamp[camp].stlMap[num] = bMins;
+            if (op !== 'Sin Asignar') {
+                if (statsOp[op].stlMap[num] === undefined || bMins < statsOp[op].stlMap[num]) statsOp[op].stlMap[num] = bMins;
+            }
         }
     });
+
+    // Inyectar sumas finales a los objetos de ranking
+    for (let camp in statsCamp) {
+        statsCamp[camp].sumaStl = Object.values(statsCamp[camp].stlMap).reduce((a,b)=>a+b, 0);
+        statsCamp[camp].stlCount = Object.keys(statsCamp[camp].stlMap).length;
+    }
+    for (let op in statsOp) {
+        statsOp[op].sumaStl = Object.values(statsOp[op].stlMap).reduce((a,b)=>a+b, 0);
+        statsOp[op].stlCount = Object.keys(statsOp[op].stlMap).length;
+    }
 
     citas.forEach(c => {
         let op = (c['Operador'] || 'Sin Asignar').trim(); initOp(op);
@@ -110,12 +134,6 @@ function renderizarCallTracker(dataFiltrada) {
         if (op !== 'Sin Asignar') statsOp[op].citas++;
         statsCamp[camp].citas++; 
         if(op !== 'Sin Asignar') statsCamp[camp].ops.add(op);
-    });
-
-    llamadas.forEach(ll => {
-        let num = String(ll['Numero'] || '').trim();
-        let op = numeroAOperador[num] || 'Sin Asignar';
-        if(op !== 'Sin Asignar') { initOp(op); statsOp[op].llamadas++; }
     });
 
     let totalVentas = shows.filter(s => {
@@ -147,7 +165,6 @@ function renderizarCallTracker(dataFiltrada) {
     document.getElementById('track-drop-3').innerText = `↳ ${fCitas>0 ? ((fShows/fCitas)*100).toFixed(1) : 0}% asistencia`;
     document.getElementById('track-drop-4').innerText = `↳ ${fShows>0 ? ((fVentas/fShows)*100).toFixed(1) : 0}% cierre`;
 
-    // 5. MOTOR DE ORDENAMIENTO DE TABLAS
     const sortArray = (arr, state) => {
         return arr.sort((a, b) => {
             let valA = a[state.col]; let valB = b[state.col];
@@ -160,18 +177,13 @@ function renderizarCallTracker(dataFiltrada) {
         document.querySelectorAll(`#${tableId} th[data-sort]`).forEach(th => {
             th.onclick = () => {
                 const col = th.getAttribute('data-sort');
-                if(window.trackerSortState[key].col === col) {
-                    window.trackerSortState[key].asc = !window.trackerSortState[key].asc;
-                } else {
-                    window.trackerSortState[key].col = col;
-                    window.trackerSortState[key].asc = false;
-                }
+                if(window.trackerSortState[key].col === col) { window.trackerSortState[key].asc = !window.trackerSortState[key].asc; } 
+                else { window.trackerSortState[key].col = col; window.trackerSortState[key].asc = false; }
                 renderizarCallTracker(dataFiltrada);
             };
         });
     };
 
-    // 6. RENDERIZAR TABLAS RANKING
     const renderRanking = (dataRows, tbodyId, btnId, isCamp) => {
         const tbody = document.getElementById(tbodyId); const btn = document.getElementById(btnId);
         if (!tbody) return; tbody.innerHTML = '';
@@ -190,7 +202,8 @@ function renderizarCallTracker(dataFiltrada) {
             let stlTxt = stlMins < 60 ? `${stlMins} min` : `${Math.floor(stlMins/60)}h ${stlMins%60}m`;
 
             if (isCamp) {
-                tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td>${row.leads}</td> <td><span class="text-warning">${row.leads>0?((row.contactados/row.leads)*100).toFixed(1):0}%</span></td> <td><span class="text-success">${row.citas} (${row.leads>0?((row.citas/row.leads)*100).toFixed(1):0}%)</span></td> <td>${row.stlCount>0?stlTxt:'-'}</td>`;
+                let uniqCont = row.contactadosSet.size;
+                tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td>${row.leads}</td> <td><span class="text-warning">${row.leads>0?((uniqCont/row.leads)*100).toFixed(1):0}%</span></td> <td><span class="text-success">${row.citas} (${row.leads>0?((row.citas/row.leads)*100).toFixed(1):0}%)</span></td> <td>${row.stlCount>0?stlTxt:'-'}</td>`;
             } else {
                 tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td><span class="text-success">${row.citas}</span></td> <td>${row.shows}</td> <td style="color: var(--text-muted);">${row.stlCount>0?stlTxt:'-'}</td> <td style="color: var(--text-muted);">${row.llamadas}</td>`;
             }
@@ -223,12 +236,14 @@ function renderizarCallTracker(dataFiltrada) {
     attachSortListeners('tracker-op-table', 'op');
     attachSortListeners('tracker-camp-table', 'camp');
 
-    // 7. RENDERIZAR TABLA DE DESGLOSE
     const breakTbody = document.querySelector('#tracker-breakdown-table tbody');
     if(breakTbody) {
         breakTbody.innerHTML = '';
         let bRows = Object.values(statsCamp).filter(r => r.inv > 0 || r.leads > 0 || r.citas > 0);
-        bRows.forEach(r => r.opsList = Array.from(r.ops).join(', ') || '-');
+        bRows.forEach(r => {
+            r.opsList = Array.from(r.ops).join(', ') || '-';
+            r.contactados = r.contactadosSet.size; 
+        });
         
         bRows = sortArray(bRows, window.trackerSortState.breakdown);
 
