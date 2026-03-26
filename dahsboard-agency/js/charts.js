@@ -113,9 +113,9 @@ function renderizarGraficos(dataFiltrada) {
             
             timelineHist[fechaStr].contactados++;
             
-            let dateE = adjustToDashboardTz(c['Fecha entrada lead'] || c['Fecha Lead entra'], c['Hora Generado'] || c['Hora entrada'], leadTz, c, 'Fecha entrada lead');
-            if (dateE) {
-                timelineHist[fechaStr].sumaStl += (typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dateE, dateL) : 0);
+            let bMins = c['_stl_' + globalTz];
+            if (bMins !== undefined && bMins !== null) {
+                timelineHist[fechaStr].sumaStl += bMins;
                 timelineHist[fechaStr].countStl++;
             }
         }
@@ -164,9 +164,9 @@ function renderizarGraficos(dataFiltrada) {
                 let h = dateL.getHours(); // <-- AHORA SÍ: Agrupado por la hora real de la llamada
                 if (h >= 0 && h <= currentHourTz) {
                     volHoy[h]++;
-                    let dateE = adjustToDashboardTz(c['Fecha entrada lead'] || c['Fecha Lead entra'], c['Hora Generado'] || c['Hora entrada'], leadTz, c, 'Fecha entrada lead');
-                    if (dateE) {
-                        stlSumaHoy[h] += (typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dateE, dateL) : 0);
+                    let bMins = c['_stl_' + globalTz];
+                    if (bMins !== undefined && bMins !== null) {
+                        stlSumaHoy[h] += bMins;
                         stlCountHoy[h]++;
                     }
                 }
