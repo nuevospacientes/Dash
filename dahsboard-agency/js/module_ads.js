@@ -5,10 +5,34 @@
 window.adsApp = {
     tableColumns: [],
     customColumns: [],
+    kpiConfig: [],
     currentSort: { column: 'gasto', desc: true },
     consolidatedData: [],
     totals: {},
     isInitialized: false,
+
+    // Diccionario maestro de métricas disponibles para las tarjetas
+    METRICS_DEF: {
+        leads: { label: 'Leads Totales', type: 'number' },
+        cpl: { label: 'CPL Promedio', type: 'currency' },
+        contactados: { label: 'Leads Contactados', type: 'number' },
+        cpq: { label: 'Costo x Contacto', type: 'currency' },
+        citas: { label: 'Citas Agendadas', type: 'number' },
+        cp_cita: { label: 'Costo x Cita', type: 'currency' },
+        shows: { label: 'Asistencias (Shows)', type: 'number' },
+        cp_show: { label: 'Costo x Asist', type: 'currency' },
+        ventas: { label: 'Ventas Cerradas', type: 'number' },
+        cpa: { label: 'CPA General', type: 'currency' },
+        gasto: { label: 'Inversión (Meta Ads)', type: 'currency' },
+        cpm: { label: 'CPM Promedio', type: 'currency' },
+        ingresos: { label: 'Ingresos Generados', type: 'currency' },
+        aov: { label: 'Ticket Promedio', type: 'currency' },
+        roas: { label: 'ROAS Global', type: 'roas' },
+        profit: { label: 'Profit Neto', type: 'currency_sign' },
+        clics: { label: 'Clics Totales', type: 'number' },
+        ctr: { label: 'CTR Promedio', type: 'percentage' },
+        impresiones: { label: 'Impresiones', type: 'number' }
+    },
 
     init: function() {
         this.tableColumns = [
@@ -28,6 +52,15 @@ window.adsApp = {
             { id: 'cpa', label: 'CPA ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'ingresos', label: 'Ingresos ↕', type: 'currency', visible: false, align: 'right', color: '#10b981' },
             { id: 'roas', label: 'ROAS ↕', type: 'roas', visible: false, align: 'right', color: '#bc13fe' }
+        ];
+
+        // Tarjetas por defecto
+        this.kpiConfig = [
+            { main: 'leads', sub: 'cpl', color: 'var(--border-color)' },
+            { main: 'contactados', sub: 'cpq', color: 'var(--brand-primary)' },
+            { main: 'shows', sub: 'cp_show', color: 'var(--accent-warning)' },
+            { main: 'ventas', sub: 'cpa', color: 'var(--accent-success)' },
+            { main: 'gasto', sub: 'cpm', color: 'var(--accent-danger)' }
         ];
 
         this.loadSettings();
@@ -50,6 +83,7 @@ window.adsApp = {
                 let parsed = JSON.parse(saved);
                 if(parsed.tableColumns) this.tableColumns = parsed.tableColumns;
                 if(parsed.customColumns) this.customColumns = parsed.customColumns;
+                if(parsed.kpiConfig) this.kpiConfig = parsed.kpiConfig;
             } catch(e){}
         }
     },
@@ -57,9 +91,10 @@ window.adsApp = {
     saveSettings: function() {
         localStorage.setItem('np_ads_settings', JSON.stringify({
             tableColumns: this.tableColumns,
-            customColumns: this.customColumns
+            customColumns: this.customColumns,
+            kpiConfig: this.kpiConfig
         }));
-        alert('¡Configuración de columnas y métricas guardada con éxito!');
+        alert('¡Configuración guardada en tu navegador con éxito!');
     },
 
     evaluateFormula: function(formula, row) {
@@ -80,16 +115,15 @@ window.adsApp = {
             if(!stats[c]) stats[c] = {
                 campana: c, gasto: 0, clics: 0, impresiones: 0,
                 leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0,
-                isActive: false // Nuevo campo para el filtro
+                isActive: false // Para el filtro de estado
             };
             return c;
         };
 
-        // Lógica para detectar si está "Activa" (Gasto entre ayer y hoy)
+        // Regla: Si gastó dinero de ayer a hoy, está Activa.
         let now = new Date();
         let startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
 
-        // 1. META ADS
         if (dataFiltrada.ads) {
             dataFiltrada.ads.forEach(ad => {
                 let c = init(ad['Campaign name']);
@@ -100,7 +134,6 @@ window.adsApp = {
                     stats[c].clics += parseInt(ad['Clicks (all)']||0)||0;
                     stats[c].impresiones += parseInt(ad['Impressions']||0)||0;
 
-                    // Si la fila tiene gasto y es de ayer o hoy, la marcamos como activa
                     let rowTime = null;
                     if (ad['Day']) {
                         let p = String(ad['Day']).trim().split('-');
@@ -145,7 +178,6 @@ window.adsApp = {
             r.cpa = r.ventas > 0 ? r.gasto / r.ventas : 0;
             r.roas = r.gasto > 0 ? r.ingresos / r.gasto : 0;
             r.ctr = r.impresiones > 0 ? (r.clics / r.impresiones) * 100 : 0;
-
             this.customColumns.forEach(cc => { r[cc.id] = this.evaluateFormula(cc.formula, r); });
             return r;
         });
@@ -181,21 +213,18 @@ window.adsApp = {
         thead.innerHTML = ''; tbody.innerHTML = ''; tfoot.innerHTML = '';
         let visibleCols = this.tableColumns.filter(c => c.visible);
 
-        // 1. Obtener valores de los filtros
         let searchTerm = document.getElementById('ads-search-camp') ? document.getElementById('ads-search-camp').value.toLowerCase() : '';
         let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'active';
 
-        // Renderizar Encabezados Draggables y Resizables
+        // 1. Dibujar Encabezados (Draggable y Resizable)
         visibleCols.forEach((col) => {
             const th = document.createElement('th');
             th.className = `draggable-header`;
             th.style.textAlign = col.align;
-            // Ancho inicial para que no se aprieten
             th.style.minWidth = col.id === 'campana' ? '250px' : '130px'; 
             th.draggable = true; 
             th.innerHTML = col.label;
             
-            // Div para redimensionar (arrastrar ancho)
             const resizer = document.createElement('div');
             resizer.className = 'resizer';
             th.appendChild(resizer);
@@ -206,13 +235,12 @@ window.adsApp = {
             th.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             th.addEventListener('drop', (e) => this.handleDrop(e, col.id));
             th.addEventListener('dragend', (e) => this.handleDragEnd(e));
-            // Prevenir sort si se está haciendo clic en el resizer
             th.addEventListener('click', (e) => { if(!e.target.classList.contains('resizer')) this.sortTable(col.id); });
             
             thead.appendChild(th);
         });
 
-        // 2. Aplicar Filtros a la Data
+        // 2. Filtrar Datos
         let filteredData = this.consolidatedData.filter(row => {
             if (searchTerm && !row.campana.toLowerCase().includes(searchTerm)) return false;
             if (statusFilter === 'active' && !row.isActive) return false;
@@ -222,6 +250,7 @@ window.adsApp = {
 
         let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0 };
 
+        // 3. Dibujar Filas
         filteredData.forEach(row => {
             t.gasto += row.gasto||0; t.clics += row.clics||0; t.impresiones += row.impresiones||0;
             t.leads += row.leads||0; t.contactados += row.contactados||0; t.citas += row.citas||0;
@@ -234,13 +263,7 @@ window.adsApp = {
                 if(col.color) td.style.color = col.color;
                 if(col.id === 'campana') td.style.fontWeight = 'bold';
                 
-                let val = row[col.id] || 0;
-                if (col.type === 'text') td.innerHTML = row[col.id];
-                else if (col.type === 'number') td.innerHTML = val.toLocaleString(undefined, {maximumFractionDigits: 2});
-                else if (col.type === 'currency') td.innerHTML = `$${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                else if (col.type === 'percentage') td.innerHTML = `${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}%`;
-                else if (col.type === 'roas') td.innerHTML = `${val.toFixed(2)}x`;
-                
+                td.innerHTML = this.formatMetric(row[col.id], col.type);
                 tr.appendChild(td);
             });
             tbody.appendChild(tr);
@@ -249,7 +272,7 @@ window.adsApp = {
         if(filteredData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="${visibleCols.length}" style="text-align: center; padding: 20px; color: var(--text-muted);">No hay campañas que coincidan con tu búsqueda o filtro.</td></tr>`;
         } else {
-            // 3. Fila de Totales en el TFOOT
+            // 4. Inyectar Footer Pegajoso
             t.cpl = t.leads > 0 ? t.gasto / t.leads : 0;
             t.cpq = t.contactados > 0 ? t.gasto / t.contactados : 0;
             t.cp_cita = t.citas > 0 ? t.gasto / t.citas : 0;
@@ -260,55 +283,145 @@ window.adsApp = {
             this.customColumns.forEach(cc => { t[cc.id] = this.evaluateFormula(cc.formula, t); });
 
             const trTotal = document.createElement('tr');
-            
             visibleCols.forEach((col, idx) => {
                 const td = document.createElement('td');
                 td.style.textAlign = col.align;
-                
                 if (idx === 0) td.innerHTML = 'TOTAL GLOBAL FILTRADO';
-                else {
-                    let val = t[col.id] || 0;
-                    if (col.type === 'number') td.innerHTML = val.toLocaleString(undefined, {maximumFractionDigits: 2});
-                    else if (col.type === 'currency') td.innerHTML = `$${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                    else if (col.type === 'percentage') td.innerHTML = `${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}%`;
-                    else if (col.type === 'roas') td.innerHTML = `${val.toFixed(2)}x`;
-                }
+                else td.innerHTML = this.formatMetric(t[col.id], col.type);
                 trTotal.appendChild(td);
             });
             tfoot.appendChild(trTotal);
         }
 
-        this.updateKPIs(t);
+        this.totals = t; // Guardar totales para el redibujo de tarjetas
+        this.updateKPIs();
     },
 
-    updateKPIs: function(t) {
-        document.getElementById('ads-kpi-leads').innerText = t.leads.toLocaleString();
-        document.getElementById('ads-kpi-cpl').innerText = `$${t.cpl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-shows').innerText = t.shows.toLocaleString();
-        document.getElementById('ads-kpi-cps').innerText = `$${t.cp_show.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-ventas').innerText = t.ventas.toLocaleString();
-        document.getElementById('ads-kpi-cpa').innerText = `$${t.cpa.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-gasto').innerText = `$${t.gasto.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        let cpm = t.impresiones > 0 ? (t.gasto / t.impresiones) * 1000 : 0;
-        document.getElementById('ads-kpi-cpm').innerText = `$${cpm.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-ingresos').innerText = `$${t.ingresos.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        let aov = t.ventas > 0 ? (t.ingresos / t.ventas) : 0;
-        document.getElementById('ads-kpi-aov').innerText = `$${aov.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-roas').innerText = `${t.roas.toFixed(2)}x`;
-        let profit = t.ingresos - t.gasto;
-        let profitColor = profit >= 0 ? '#10b981' : 'var(--accent-danger)';
-        let sign = profit >= 0 ? '+$' : '-$';
-        let profitEl = document.getElementById('ads-kpi-profit');
-        profitEl.innerText = `${sign}${Math.abs(profit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        profitEl.style.color = profitColor;
+    // --- FORMATEADOR MAESTRO ---
+    formatMetric: function(val, type) {
+        val = val || 0;
+        if (type === 'number') return val.toLocaleString(undefined, {maximumFractionDigits: 0});
+        if (type === 'currency') return `$${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        if (type === 'percentage') return `${val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}%`;
+        if (type === 'roas') return `${val.toFixed(2)}x`;
+        if (type === 'currency_sign') {
+            let sign = val >= 0 ? '+$' : '-$';
+            return `${sign}${Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        return val;
     },
 
-   // Función para hacer las columnas redimensionables tipo Google Sheets
+    // --- CREADOR DE TARJETAS DINÁMICAS (KPIs) ---
+    updateKPIs: function() {
+        const t = this.totals;
+        if(!t) return;
+        
+        t.cpm = t.impresiones > 0 ? (t.gasto / t.impresiones) * 1000 : 0;
+        t.aov = t.ventas > 0 ? t.ingresos / t.ventas : 0;
+        t.profit = t.ingresos - t.gasto;
+
+        const container = document.getElementById('ads-kpi-container');
+        if(!container) return;
+        container.innerHTML = '';
+
+        this.kpiConfig.forEach(conf => {
+            let mainDef = this.METRICS_DEF[conf.main] || this.METRICS_DEF['leads'];
+            let subDef = this.METRICS_DEF[conf.sub] || this.METRICS_DEF['cpl'];
+            
+            let mainVal = this.formatMetric(t[conf.main], mainDef.type);
+            let subVal = this.formatMetric(t[conf.sub], subDef.type);
+
+            let valColor = '';
+            if (conf.main === 'profit') valColor = t.profit >= 0 ? 'color: #10b981;' : 'color: var(--accent-danger);';
+            else if (conf.color && conf.color !== 'var(--border-color)') valColor = `color: ${conf.color};`;
+
+            container.innerHTML += `
+                <div class="kpi-card" style="border-left: 4px solid ${conf.color};">
+                    <div class="metric-title">${mainDef.label}</div>
+                    <div class="metric-value" style="${valColor}">${mainVal}</div>
+                    <div class="metric-subtitle">${subDef.label}: <span>${subVal}</span></div>
+                </div>
+            `;
+        });
+    },
+
+    // --- MODAL Y DRAG & DROP DE TARJETAS ---
+    openKpiModal: function() {
+        const container = document.getElementById('kpi-config-list');
+        container.innerHTML = '';
+        
+        let optionsHtml = Object.keys(this.METRICS_DEF).map(k => 
+            `<option value="${k}">${this.METRICS_DEF[k].label}</option>`
+        ).join('');
+
+        this.kpiConfig.forEach((conf, idx) => {
+            const div = document.createElement('div');
+            div.className = 'kpi-config-row';
+            div.draggable = true;
+            
+            div.innerHTML = `
+                <i class="fa-solid fa-grip-vertical drag-handle"></i>
+                <div style="flex: 1;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted);">Métrica Principal</label>
+                    <select class="filter-select w-full kpi-main-sel">${optionsHtml}</select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted);">Métrica Secundaria</label>
+                    <select class="filter-select w-full kpi-sub-sel">${optionsHtml}</select>
+                </div>
+                <div style="width: 100px;">
+                    <label style="font-size: 0.7rem; color: var(--text-muted);">Color</label>
+                    <select class="filter-select w-full kpi-color-sel">
+                        <option value="var(--border-color)">Gris</option>
+                        <option value="var(--brand-primary)">Azul</option>
+                        <option value="var(--accent-success)">Verde</option>
+                        <option value="var(--accent-warning)">Naranja</option>
+                        <option value="var(--accent-danger)">Rojo</option>
+                        <option value="#bc13fe">Púrpura</option>
+                    </select>
+                </div>
+            `;
+            
+            div.querySelector('.kpi-main-sel').value = conf.main;
+            div.querySelector('.kpi-sub-sel').value = conf.sub;
+            div.querySelector('.kpi-color-sel').value = conf.color;
+            
+            div.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', idx);
+                div.classList.add('dragging');
+            });
+            div.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const draggingRow = document.querySelector('.dragging');
+                const offset = div.getBoundingClientRect().y + (div.getBoundingClientRect().height / 2);
+                if (e.clientY > offset) div.parentNode.insertBefore(draggingRow, div.nextSibling);
+                else div.parentNode.insertBefore(draggingRow, div);
+            });
+            div.addEventListener('dragend', () => div.classList.remove('dragging'));
+            
+            container.appendChild(div);
+        });
+        
+        document.getElementById('modal-ads-kpi').style.display = 'flex';
+    },
+
+    saveKpiConfig: function() {
+        const rows = document.querySelectorAll('.kpi-config-row');
+        let newConfig = [];
+        rows.forEach(row => {
+            newConfig.push({
+                main: row.querySelector('.kpi-main-sel').value,
+                sub: row.querySelector('.kpi-sub-sel').value,
+                color: row.querySelector('.kpi-color-sel').value
+            });
+        });
+        this.kpiConfig = newConfig;
+        this.saveSettings(); 
+        this.updateKPIs(); 
+        document.getElementById('modal-ads-kpi').style.display = 'none';
+    },
+
+    // --- MANEJO REDIMENSIONAR COLUMNAS ---
     createResizableColumn: function(col, resizer) {
         let x = 0; let w = 0;
         const mouseDownHandler = function(e) {
@@ -318,7 +431,6 @@ window.adsApp = {
             document.addEventListener('mousemove', mouseMoveHandler);
             document.addEventListener('mouseup', mouseUpHandler);
             resizer.classList.add('resizing');
-            // Quitar draggable mientras se redimensiona
             col.setAttribute('draggable', false);
         };
         const mouseMoveHandler = function(e) {
@@ -335,29 +447,7 @@ window.adsApp = {
         resizer.addEventListener('mousedown', mouseDownHandler);
     },
 
-    updateKPIs: function(t) {
-        document.getElementById('ads-kpi-leads').innerText = t.leads.toLocaleString();
-        document.getElementById('ads-kpi-cpl').innerText = `$${t.cpl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        // Nueva tarjeta Contactados
-        let contactadosEl = document.getElementById('ads-kpi-contactados');
-        if(contactadosEl) {
-            contactadosEl.innerText = t.contactados.toLocaleString();
-            document.getElementById('ads-kpi-cpq').innerText = `$${t.cpq.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        }
-        
-        document.getElementById('ads-kpi-shows').innerText = t.shows.toLocaleString();
-        document.getElementById('ads-kpi-cps').innerText = `$${t.cp_show.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-ventas').innerText = t.ventas.toLocaleString();
-        document.getElementById('ads-kpi-cpa').innerText = `$${t.cpa.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        
-        document.getElementById('ads-kpi-gasto').innerText = `$${t.gasto.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        let cpm = t.impresiones > 0 ? (t.gasto / t.impresiones) * 1000 : 0;
-        document.getElementById('ads-kpi-cpm').innerText = `$${cpm.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    },
-   
-    // --- MANEJO DE COLUMNAS ---
+    // --- MANEJO CONFIGURACIÓN COLUMNAS TABLA ---
     renderColumnSettings: function() {
         const container = document.getElementById('ads-col-menu');
         if(!container) return;
@@ -366,12 +456,9 @@ window.adsApp = {
         this.tableColumns.forEach(col => {
             const label = document.createElement('label');
             label.className = 'col-toggle-label';
-            
             const cb = document.createElement('input');
-            cb.type = 'checkbox'; 
-            cb.checked = col.visible;
+            cb.type = 'checkbox'; cb.checked = col.visible;
             cb.onchange = () => { col.visible = cb.checked; this.renderTable(); };
-            
             label.appendChild(cb);
             label.appendChild(document.createTextNode(' ' + col.label.replace(' ↕', '')));
             container.appendChild(label);
@@ -385,25 +472,20 @@ window.adsApp = {
         let name = document.getElementById('custom-col-name').value;
         let formula = document.getElementById('custom-col-formula').value;
         let format = document.getElementById('custom-col-format').value;
-        
         if(!name || !formula) { alert("Completa el nombre y la fórmula"); return; }
         
         let newId = 'cust_' + Date.now();
         this.customColumns.push({ id: newId, formula: formula });
-        
-        this.tableColumns.push({
-            id: newId, label: name + ' ↕', type: format, visible: true, align: 'right',
-            color: 'var(--accent-success)'
-        });
+        this.tableColumns.push({ id: newId, label: name + ' ↕', type: format, visible: true, align: 'right', color: 'var(--accent-success)' });
         
         document.getElementById('custom-col-name').value = '';
         document.getElementById('custom-col-formula').value = '';
         document.getElementById('modal-custom-col').style.display = 'none';
         
-        this.processData(window.AppData.lastFiltrada || window.AppData.raw); // Recalcular con la data actual
+        this.processData(window.AppData.lastFiltrada || window.AppData.raw);
     },
 
-    // --- EVENTOS DRAG AND DROP ---
+    // --- EVENTOS DRAG AND DROP TABLA ---
     handleDragStart: function(e, colId) {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', colId);
@@ -432,9 +514,8 @@ window.adsApp = {
     }
 };
 
-// Conector con el Cerebro Central (`app.js`)
 window.renderizarAds = function(dataFiltrada) {
     if (!window.adsApp.isInitialized) window.adsApp.init();
-    window.AppData.lastFiltrada = dataFiltrada; // Guardar referencia para recalcular al crear métricas
+    window.AppData.lastFiltrada = dataFiltrada;
     window.adsApp.processData(dataFiltrada);
 };
