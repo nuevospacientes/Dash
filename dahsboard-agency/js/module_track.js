@@ -25,10 +25,10 @@ function renderizarCallTracker(dataFiltrada) {
         if (num !== '' && op !== '') numeroAOperador[num] = op;
     });
 
-    // TOTAL DE INTENTOS = Filas en Hoja 2 (484)
-    let totalLlamadasEmitidas = contactados.length; 
-
-    // Calidad tomada desde las conectadas reales (Hoja 3)
+    // 2. KPIs SUPERIORES (Calidad de Llamadas)
+    // El total de llamadas emitidas es el total de filas crudas en Contactados (Hoja 2)
+    let totalLlamadasEmitidas = dataFiltrada.contactados.length;
+    
     let pickUpCount = 0, connectionCount = 0, effectiveCount = 0;
     llamadas.forEach(ll => {
         let duracion = parseFloat(ll['Duracion Lllamda']) || 0;
@@ -42,7 +42,6 @@ function renderizarCallTracker(dataFiltrada) {
         const globalStlEl = document.querySelector('#kpi-container-general .kpi-card:nth-child(2) .metric-value');
         kpiCards[0].querySelector('.metric-value').innerText = globalStlEl ? globalStlEl.innerText : '0 min';
         
-        // El porcentaje es: ¿De los 484 intentos, cuántos duraron más de 15s?
         let pPick = totalLlamadasEmitidas > 0 ? (pickUpCount / totalLlamadasEmitidas) * 100 : 0;
         let pConn = totalLlamadasEmitidas > 0 ? (connectionCount / totalLlamadasEmitidas) * 100 : 0;
         let pEff = totalLlamadasEmitidas > 0 ? (effectiveCount / totalLlamadasEmitidas) * 100 : 0;
