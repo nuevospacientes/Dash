@@ -190,10 +190,17 @@ function procesarYRenderizar() {
     const finalOperatorSelected = opFilter.value;
 
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
-        if (finalCampaignSelected !== 'all' && colCampaña && row[colCampaña] !== finalCampaignSelected) return false;
-        if (finalOperatorSelected !== 'all' && colOperador && row[colOperador] !== finalOperatorSelected) return false;
+        // 1. Limpiamos espacios extra en Campaña para evitar que se filtren mal
+        if (finalCampaignSelected !== 'all' && colCampaña && row[colCampaña] !== undefined) {
+            if (String(row[colCampaña]).trim() !== finalCampaignSelected) return false;
+        }
+        // 2. Limpiamos espacios extra en Operador
+        if (finalOperatorSelected !== 'all' && colOperador && row[colOperador] !== undefined) {
+            if (String(row[colOperador]).trim() !== finalOperatorSelected) return false;
+        }
+        // 3. Filtro de Fecha
         if (start !== null && end !== null && colFecha) {
-            if (!row[colFecha]) return false;
+            if (!row[colFecha] || String(row[colFecha]).trim() === '') return false;
             const rowTime = parseDateSpanish(row[colFecha], row, colFecha); 
             if (!rowTime) return false; 
             if (rowTime < start || rowTime >= end) return false;
@@ -202,7 +209,9 @@ function procesarYRenderizar() {
     };
 
     const cumpleFiltroAds = (row) => {
-        if (finalCampaignSelected !== 'all' && row['Campaign name'] && row['Campaign name'] !== finalCampaignSelected) return false;
+        if (finalCampaignSelected !== 'all' && row['Campaign name'] !== undefined) {
+            if (String(row['Campaign name']).trim() !== finalCampaignSelected) return false;
+        }
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
