@@ -482,3 +482,55 @@ body {
     margin-top: 10px;
     color: var(--text-muted);
 }
+/* ==========================================
+   SISTEMA DE TOOLTIPS (AYUDA HOVER)
+   ========================================== */
+.tooltip-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+    color: var(--brand-primary);
+    margin-left: 6px;
+}
+
+.tooltip-container .tooltip-text {
+    visibility: hidden;
+    width: 220px;
+    background-color: var(--bg-input);
+    color: var(--text-main);
+    text-align: center;
+    border-radius: 8px;
+    padding: 10px 14px;
+    position: absolute;
+    z-index: 100;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s, bottom 0.3s;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    pointer-events: none;
+}
+
+/* Flechita del tooltip */
+.tooltip-container .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--border-color) transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    bottom: 140%;
+}
