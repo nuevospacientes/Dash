@@ -468,7 +468,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 15px;">
                         <h2 class="section-title" style="margin-bottom: 0;">Buying Media & Control Financiero</h2>
-                        <button class="icon-btn" title="Configurar Tarjetas" style="border: none; background: rgba(255,255,255,0.05);"><i class="fa-solid fa-sliders"></i></button>
+                        <button onclick="adsApp.openKpiModal()" class="icon-btn" title="Configurar Tarjetas" style="border: none; background: rgba(255,255,255,0.05); color: var(--brand-primary); cursor: pointer;"><i class="fa-solid fa-sliders"></i></button>
                     </div>
                     <div style="display: flex; gap: 10px;">
                         <button onclick="adsApp.openCustomColModal()" class="btn-primary" style="background: var(--accent-success);"><i class="fa-solid fa-plus"></i> Crear Métrica</button>
@@ -480,32 +480,7 @@
                     </div>
                 </div>
 
-                <div class="grid-cards" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 20px;">
-                    <div class="kpi-card" style="border-left: 4px solid var(--border-color);">
-                        <div class="metric-title">Leads Totales</div>
-                        <div class="metric-value" id="ads-kpi-leads">0</div>
-                        <div class="metric-subtitle">CPL: <span id="ads-kpi-cpl">$0.00</span></div>
-                    </div>
-                    <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
-                        <div class="metric-title">Leads Contactados</div>
-                        <div class="metric-value" style="color: var(--brand-primary);" id="ads-kpi-contactados">0</div>
-                        <div class="metric-subtitle">Costo x Contacto: <span id="ads-kpi-cpq">$0.00</span></div>
-                    </div>
-                    <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
-                        <div class="metric-title">Asistencias (Shows)</div>
-                        <div class="metric-value text-warning" id="ads-kpi-shows">0</div>
-                        <div class="metric-subtitle">Costo x Asist: <span id="ads-kpi-cps">$0.00</span></div>
-                    </div>
-                    <div class="kpi-card" style="border-left: 4px solid var(--accent-success);">
-                        <div class="metric-title">Ventas Cerradas</div>
-                        <div class="metric-value text-success" id="ads-kpi-ventas">0</div>
-                        <div class="metric-subtitle">CPA General: <span id="ads-kpi-cpa">$0.00</span></div>
-                    </div>
-                    <div class="kpi-card" style="border-left: 4px solid var(--accent-danger);">
-                        <div class="metric-title">Inversión (Meta Ads)</div>
-                        <div class="metric-value" style="color: var(--accent-danger);" id="ads-kpi-gasto">$0.00</div>
-                        <div class="metric-subtitle">CPM Promedio: <span id="ads-kpi-cpm">$0.00</span></div>
-                    </div>
+                <div class="grid-cards" id="ads-kpi-container" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 20px;">
                 </div>
 
                 <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center; background: var(--bg-panel); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color);">
@@ -530,7 +505,7 @@
                                 <tr><td colspan="20" style="text-align: center; padding: 30px; color: var(--text-muted);">Esperando datos...</td></tr>
                             </tbody>
                             <tfoot id="ads-table-foot">
-                                </tfoot>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -574,6 +549,21 @@
                 </div>
             </div>
 
+            <div id="modal-ads-kpi" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-top: 4px solid var(--brand-primary); max-width: 600px;">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-sliders"></i> Personalizar Tarjetas</h2>
+                        <button onclick="document.getElementById('modal-ads-kpi').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Arrastra desde los iconos (<i class="fa-solid fa-grip-vertical"></i>) para reordenar y elige qué métricas mostrar en tu panel.</p>
+                    
+                    <div id="kpi-config-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                        </div>
+
+                    <button onclick="adsApp.saveKpiConfig()" class="btn-primary w-full">Guardar y Aplicar</button>
+                </div>
+            </div>
+
             <section id="view-search" class="view-section">
                 <div style="max-width: 800px; margin: 0 auto; text-align: center;">
                     <h2 class="section-title" style="font-size: 1.8rem; color: var(--brand-primary); margin-bottom: 5px; text-transform: none;">🕵️ Detective de Leads</h2>
@@ -585,7 +575,7 @@
                     </div>
 
                     <div id="search-results" style="display: none; text-align: left;">
-                        </div>
+                    </div>
                 </div>
             </section>
         </main>
