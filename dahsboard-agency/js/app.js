@@ -368,34 +368,78 @@ window.ejecutarDetective = function() {
             
             let timestamp = 0;
             if (dateStr) {
-                let parsed = typeof parseDateSpanish === 'function' ? parseDateSpanish(dateStr, row, 'dummy') : new Date(dateStr).getTime();
-                if (parsed) timestamp = parsed;
+                let parsed = typeof parseDateSpanish === 'function' ? parseDateSpanish(dateStr.split(' ')[0], row, 'dummy') : new Date(dateStr.split(' ')[0]).getTime();
+                
+                // Si tiene hora, se la sumamos al timestamp para que el orden sea exacto
+                if (parsed) {
+                    timestamp = parsed;
+                    let timeMatch = dateStr.match(/\d{1,2}:\d{2}(:\d{2})?/);
+                    if (timeMatch) {
+                        let pts = timeMatch[0].split(':');
+                        timestamp += (parseInt(pts[0]) * 3600000) + (parseInt(pts[1]) * 60000);
+                    }
+                }
             }
 
             perfiles[id].events.push({ type, dateStr: dateStr || 'Fecha no registrada', details, badgeColor, icon, timestamp, row });
         };
 
+        // --- CEREBRO PARA CALCULAR LA DURACIÓN DE LA LLAMADA ---
+        const calcularDuracion = (horaInicio, horaFin) => {
+            if (!horaInicio || !horaFin) return null;
+            let t1 = String(horaInicio).trim().split(':');
+            let t2 = String(horaFin).trim().split(':');
+            
+            if (t1.length < 2 || t2.length < 2) return null;
+
+            let d1 = new Date(); d1.setHours(parseInt(t1[0]), parseInt(t1[1]), parseInt(t1[2]||0));
+            let d2 = new Date(); d2.setHours(parseInt(t2[0]), parseInt(t2[1]), parseInt(t2[2]||0));
+            
+            let diffMs = d2 - d1;
+            if (diffMs < 0) diffMs += 86400000; // Si la llamada cruzó la medianoche
+            
+            let diffSecs = Math.floor(diffMs / 1000);
+            if (diffSecs < 60) return `${diffSecs} seg`;
+            return `${Math.floor(diffSecs / 60)} min ${diffSecs % 60} seg`;
+        };
+
         // 1. ESPIA EN LEADS
         rawData.leads.filter(matchRecord).forEach(r => {
             let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
-            addEvent(id, 'INGRESO LEAD', r['Fecha entrada lead'] || r['Lead entry date'], `El lead entró al sistema.`, 'var(--border-color)', 'fa-user-plus', r);
+            let hora = r['Hora Generado'] || r['Hora entrada'] || '';
+            let dateStr = hora ? `${r['Fecha entrada lead'] || r['Lead entry date']} ${hora}` : (r['Fecha entrada lead'] || r['Lead entry date']);
+            addEvent(id, 'INGRESO LEAD', dateStr, `El lead entró al sistema.`, 'var(--border-color)', 'fa-user-plus', r);
         });
 
-        // 2. ESPIA EN INTENTOS DE LLAMADA
+        // 2. ESPIA EN INTENTOS DE LLAMADA (Hoja 2)
         if(rawData.contactados) {
             rawData.contactados.filter(matchRecord).forEach(r => {
                 let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
                 let op = r['Operador'] || 'un agente';
-                addEvent(id, 'INTENTO DE LLAMADA', r['Fecha 1er llamada'] || r['Fecha Lead entra'], `El operador <b>${op}</b> realizó una marca/intento.`, 'var(--text-muted)', 'fa-phone', r);
+                let fecha = r['Fecha 1er llamada'] || r['Fecha Lead entra'] || 'Fecha desconocida';
+                let hora = r['Hora 1er llamada'] || '';
+                let dateStr = hora ? `${fecha} ${hora}` : fecha;
+                
+                addEvent(id, 'INTENTO DE LLAMADA', dateStr, `El operador <b>${op}</b> realizó una marca/intento de contacto.`, 'var(--text-muted)', 'fa-phone', r);
             });
         }
 
-        // 3. ESPIA EN LLAMADAS CONECTADAS
+        // 3. ESPIA EN LLAMADAS CONECTADAS (Hoja 3)
         if(rawData.llamadas) {
             rawData.llamadas.filter(matchRecord).forEach(r => {
                 let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
                 let op = r['Operador'] || 'un agente';
-                addEvent(id, 'LLAMADA CONECTADA', r['Fecha last call'], `Llamada exitosa atendida por <b>${op}</b>.`, '#bc13fe', 'fa-phone-volume', r);
+                let fecha = r['Fecha last call'] || r['Fecha 1er llamada'] || 'Fecha desconocida';
+                let horaInicio = r['Hora 1er llamada'] || '';
+                let horaFin = r['Hora last call'] || '';
+                
+                let dateStr = horaInicio ? `${fecha} ${horaInicio}` : fecha;
+                
+                // Calculamos la duración usando la nueva función matemática
+                let duracion = calcularDuracion(horaInicio, horaFin);
+                let duracionHtml = duracion ? `<br><span style="color: #bc13fe; font-size: 0.8rem;"><i class="fa-solid fa-clock"></i> Tiempo en línea: <b>${duracion}</b></span>` : '';
+
+                addEvent(id, 'LLAMADA CONECTADA', dateStr, `El lead contestó. Atendido por: <b>${op}</b>.${duracionHtml}`, '#bc13fe', 'fa-phone-volume', r);
             });
         }
 
@@ -420,8 +464,8 @@ window.ejecutarDetective = function() {
             if(rawData[cfg.sheet]) {
                 rawData[cfg.sheet].filter(matchRecord).forEach(r => {
                     let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
-                    let dep = r['Deposito'] && String(r['Deposito']).toLowerCase() !== 'sin deposito' ? `Dejó depósito vía: ${r['Deposito']}` : 'No dejó depósito.';
-                    addEvent(id, cfg.type, r['Fecha Visita'], `Resultado de la cita. ${dep}`, cfg.color, cfg.icon, r);
+                    let dep = r['Deposito'] && String(r['Deposito']).toLowerCase() !== 'sin deposito' && String(r['Deposito']).toLowerCase() !== 'sin depósito' ? `Dejó depósito vía: <b style="color: var(--accent-success);">${r['Deposito']}</b>` : 'No dejó depósito.';
+                    addEvent(id, cfg.type, r['Fecha Visita'], `Resultado de la cita. <br><span style="font-size: 0.8rem;">${dep}</span>`, cfg.color, cfg.icon, r);
                 });
             }
         });
@@ -437,6 +481,7 @@ window.ejecutarDetective = function() {
 
         keys.forEach(k => {
             let p = perfiles[k];
+            // Ordenamos la línea de tiempo cronológicamente
             p.events.sort((a,b) => a.timestamp - b.timestamp);
 
             let eventsHtml = p.events.map((ev, index) => {
@@ -487,5 +532,5 @@ window.ejecutarDetective = function() {
 
         container.innerHTML = html;
 
-    }, 300); // Pequeño delay para mostrar el spinner y no congelar la pantalla
+    }, 300);
 };
