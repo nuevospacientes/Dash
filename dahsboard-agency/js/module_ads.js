@@ -26,8 +26,8 @@ window.adsApp = {
             { id: 'cp_show', label: 'Costo x Show ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'ventas', label: 'Ventas ↕', type: 'number', visible: true, align: 'right', color: 'var(--accent-success)' },
             { id: 'cpa', label: 'CPA ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
-            { id: 'ingresos', label: 'Ingresos ↕', type: 'currency', visible: true, align: 'right', color: '#10b981' },
-            { id: 'roas', label: 'ROAS ↕', type: 'roas', visible: true, align: 'right', color: '#bc13fe' }
+            { id: 'ingresos', label: 'Ingresos ↕', type: 'currency', visible: false, align: 'right', color: '#10b981' },
+            { id: 'roas', label: 'ROAS ↕', type: 'roas', visible: false, align: 'right', color: '#bc13fe' }
         ];
 
         this.loadSettings();
@@ -120,10 +120,11 @@ window.adsApp = {
         }).forEach(s => {
             let c = init(s['Campaña']);
             stats[c].ventas++;
-            let amt = parseFloat(String(s['Monto ($)']||s['Monto']||s['Precio']||'500').replace(/[^0-9.-]+/g,""));
-            stats[c].ingresos += isNaN(amt) ? 500 : amt;
+            
+            // Ya no asumimos 500. Si la columna "Monto", "Monto ($)" o "Precio" existe, toma el valor. Si no, suma 0.
+            let amt = parseFloat(String(s['Monto ($)'] || s['Monto'] || s['Precio'] || '0').replace(/[^0-9.-]+/g,""));
+            stats[c].ingresos += isNaN(amt) ? 0 : amt;
         });
-
         // 6. CALCULAR FÓRMULAS BASE Y PERSONALIZADAS
         let arr = Object.values(stats).map(r => {
             r.cpl = r.leads > 0 ? r.gasto / r.leads : 0;
