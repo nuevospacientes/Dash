@@ -173,7 +173,7 @@ function procesarYRenderizar() {
     const opFilter = document.getElementById('global-operator-filter');
     const prevCamp = campFilter.value; const prevOp = opFilter.value;
 
-    // Evitamos repintar el DOM en cada iteración armando todo el HTML primero
+    // Armamos todo primero en texto para no ahogar al navegador inyectando uno por uno
     let campHTML = '<option value="all" selected>Todas las Campañas</option>';
     let opHTML = '<option value="all" selected>Todos los Operadores</option>';
 
