@@ -465,29 +465,102 @@
                 </div>
 
             <section id="view-ads" class="view-section">
-                <h2 class="section-title">Control Financiero (Ads)</h2>
-                
-                <div class="kpi-card">
-                    <div class="table-responsive">
-                        <table class="data-table" id="ads-table">
-                            <thead>
-                                <tr>
-                                    <th>Campaña</th>
-                                    <th>Inversión</th>
-                                    <th>Leads</th>
-                                    <th>CPL</th>
-                                    <th>Citas</th>
-                                    <th>Costo x Cita</th>
-                                    <th>ROAS</th>
-                                </tr>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <h2 class="section-title" style="margin-bottom: 0;">Buying Media & Control Financiero</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="adsApp.openCustomColModal()" class="btn-primary" style="background: var(--accent-success);"><i class="fa-solid fa-plus"></i> Crear Métrica</button>
+                        <div class="relative-dropdown" id="ads-col-config-container">
+                            <button onclick="document.getElementById('ads-col-menu').classList.toggle('show')" class="btn-primary" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main);"><i class="fa-solid fa-gear"></i> Columnas</button>
+                            <div id="ads-col-menu" class="dropdown-menu"></div>
+                        </div>
+                        <button onclick="adsApp.saveSettings()" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> Guardar Vista</button>
+                    </div>
+                </div>
+
+                <div class="grid-cards" style="grid-template-columns: repeat(6, 1fr); margin-bottom: 20px;">
+                    <div class="kpi-card" style="border-left: 4px solid var(--border-color);">
+                        <div class="metric-title">Leads Totales</div>
+                        <div class="metric-value" id="ads-kpi-leads">0</div>
+                        <div class="metric-subtitle">CPL Promedio: <span id="ads-kpi-cpl">$0.00</span></div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
+                        <div class="metric-title">Asistencias (Shows)</div>
+                        <div class="metric-value text-warning" id="ads-kpi-shows">0</div>
+                        <div class="metric-subtitle">Costo x Asist: <span id="ads-kpi-cps">$0.00</span></div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid var(--accent-success);">
+                        <div class="metric-title">Ventas Cerradas</div>
+                        <div class="metric-value text-success" id="ads-kpi-ventas">0</div>
+                        <div class="metric-subtitle">CPA General: <span id="ads-kpi-cpa">$0.00</span></div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid var(--accent-danger);">
+                        <div class="metric-title">Inversión (Meta Ads)</div>
+                        <div class="metric-value" style="color: var(--accent-danger);" id="ads-kpi-gasto">$0.00</div>
+                        <div class="metric-subtitle">CPM Promedio: <span id="ads-kpi-cpm">$0.00</span></div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #10b981;">
+                        <div class="metric-title">Ingresos Generados</div>
+                        <div class="metric-value" style="color: #10b981;" id="ads-kpi-ingresos">$0.00</div>
+                        <div class="metric-subtitle">Ticket Promedio: <span id="ads-kpi-aov">$0.00</span></div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid #bc13fe; background: linear-gradient(135deg, rgba(188,19,254,0.05), transparent);">
+                        <div class="metric-title" style="color: #d884ff;">ROAS Global</div>
+                        <div class="metric-value" style="color: #bc13fe;" id="ads-kpi-roas">0.00x</div>
+                        <div class="metric-subtitle">Profit: <span id="ads-kpi-profit">$0.00</span></div>
+                    </div>
+                </div>
+
+                <div class="kpi-card" style="padding: 0; overflow: hidden;">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="data-table" id="ads-main-table">
+                            <thead style="background: var(--bg-input); border-bottom: 2px solid var(--border-color); position: sticky; top: 0; z-index: 10;">
+                                <tr id="ads-table-header-row"></tr>
                             </thead>
-                            <tbody>
-                                <tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">Esperando datos...</td></tr>
+                            <tbody id="ads-table-body">
+                                <tr><td colspan="20" style="text-align: center; padding: 30px; color: var(--text-muted);">Esperando datos...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </section>
+
+            <div id="modal-custom-col" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-top: 4px solid var(--accent-success);">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-calculator"></i> Crear Métrica Personalizada</h2>
+                        <button onclick="document.getElementById('modal-custom-col').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <div class="input-group">
+                        <label>Nombre de la Columna</label>
+                        <input type="text" id="custom-col-name" placeholder="Ej. Tasa de Cierre Show a Venta">
+                    </div>
+                    <div class="input-group">
+                        <label>Formato de Salida</label>
+                        <select id="custom-col-format" class="filter-select w-full" style="max-width: 100%;">
+                            <option value="currency">Dinero ($0.00)</option>
+                            <option value="number">Número (0.00)</option>
+                            <option value="percentage">Porcentaje (0.00%)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Fórmula Matemática</label>
+                        <input type="text" id="custom-col-formula" placeholder="Ej. ( {{ventas}} / {{shows}} ) * 100" style="font-family: monospace; background: rgba(0,0,0,0.2);">
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+                            <strong>Variables (Clic para añadir):</strong> <br>
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{gasto}}')">{{gasto}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{clics}}')">{{clics}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{impresiones}}')">{{impresiones}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{leads}}')">{{leads}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{contactados}}')">{{contactados}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{citas}}')">{{citas}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{shows}}')">{{shows}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{ventas}}')">{{ventas}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="adsApp.insertVar('{{ingresos}}')">{{ingresos}}</code>
+                        </p>
+                    </div>
+                    <button onclick="adsApp.saveCustomCol()" class="btn-primary w-full" style="background: var(--accent-success);">Guardar Columna y Calcular</button>
+                </div>
+            </div>
 
             <section id="view-search" class="view-section">
                 <div style="max-width: 800px; margin: 0 auto; text-align: center;">
