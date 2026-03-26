@@ -60,11 +60,12 @@ function getBusinessMinutes(dateStart, dateEnd) {
 function renderizarVistaGeneral(dataFiltrada) {
     const tLeads = dataFiltrada.leads.length;
     
-    // CORRECCIÓN EXACTA a =COUNTUNIQUE() usando la columna "Nombre"
+    // CORRECCIÓN EXACTA a =COUNTUNIQUE() usando la columna "Numero"
     const leadsContactadosSet = new Set();
     dataFiltrada.contactados.forEach(c => {
-        let nombreUnico = String(c['Nombre'] || '').trim().toLowerCase();
-        if (nombreUnico !== '') leadsContactadosSet.add(nombreUnico);
+        let numeroUnico = String(c['Numero'] || '').trim();
+        // Solo añadimos si el número no está vacío
+        if (numeroUnico !== '') leadsContactadosSet.add(numeroUnico);
     });
     const tContactados = leadsContactadosSet.size;
 
@@ -91,8 +92,8 @@ function renderizarVistaGeneral(dataFiltrada) {
     const globalOffset = getTzOffsetMins(globalTz);
 
     dataFiltrada.contactados.forEach(c => {
-        // También usamos el Nombre único para el STL para no inflar repeticiones
-        let id = String(c['Nombre'] || '').trim().toLowerCase();
+        // También usamos el Numero único para el STL para no inflar repeticiones
+        let id = String(c['Numero'] || '').trim();
         if (id === '') return;
 
         let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
