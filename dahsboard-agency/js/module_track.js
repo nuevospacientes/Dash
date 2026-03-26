@@ -80,10 +80,10 @@ function renderizarCallTracker(dataFiltrada) {
     const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
-    // Procesar emisiones y STL de rankings
+    // Procesar emisiones y recuperar STL de la memoria caché
     contactados.forEach(c => {
         let camp = (c['Campaña'] || 'Desconocida').trim(); initCamp(camp);
-        let num = String(c['Numero'] || c['Nombre'] || '').trim();
+        let num = String(c['Numero'] || '').trim(); 
         let op = c['Operador'] ? c['Operador'].trim() : (numeroAOperador[num] || 'Sin Asignar');
         initOp(op);
         
@@ -91,27 +91,14 @@ function renderizarCallTracker(dataFiltrada) {
         if (num !== '') statsCamp[camp].contactadosSet.add(num);
         if (op !== 'Sin Asignar') statsOp[op].llamadas++;
         
-        let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
-        let tE = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha entrada lead'] || c['Fecha Lead entra'], c, 'Fecha entrada lead') : null;
-        let tL = typeof parseDateSpanish === 'function' ? parseDateSpanish(c['Fecha 1er llamada'], c, 'Fecha 1er llamada') : null;
-
-        if (tE && tL && num !== '') {
-            let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-            let pE = parseTime(c['Hora Generado'] || c['Hora entrada']);
-            let pL = parseTime(c['Hora 1er llamada']);
-            
-            let dE = new Date(tE); dE.setHours(pE.h, pE.m, pE.s);
-            let dL = new Date(tL); dL.setHours(pL.h, pL.m, pL.s);
-            
-            let diffMins = globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(leadTz) : 0);
-            dE.setMinutes(dE.getMinutes() + diffMins); dL.setMinutes(dL.getMinutes() + diffMins);
-
-            let bMins = typeof getBusinessMinutes === 'function' ? getBusinessMinutes(dE, dL) : 0;
-            
-            // Guardar solo el más rápido para las tablas
-            if (statsCamp[camp].stlMap[num] === undefined || bMins < statsCamp[camp].stlMap[num]) statsCamp[camp].stlMap[num] = bMins;
-            if (op !== 'Sin Asignar') {
-                if (statsOp[op].stlMap[num] === undefined || bMins < statsOp[op].stlMap[num]) statsOp[op].stlMap[num] = bMins;
+        if (num !== '') {
+            let bMins = c['_stl_' + globalTz]; // Tomamos el valor de la memoria
+            // Solo sumamos al ranking a los leads que sí fueron contactados en horario laboral (diferente de null)
+            if (bMins !== undefined && bMins !== null) {
+                if (statsCamp[camp].stlMap[num] === undefined || bMins < statsCamp[camp].stlMap[num]) statsCamp[camp].stlMap[num] = bMins;
+                if (op !== 'Sin Asignar') {
+                    if (statsOp[op].stlMap[num] === undefined || bMins < statsOp[op].stlMap[num]) statsOp[op].stlMap[num] = bMins;
+                }
             }
         }
     });
