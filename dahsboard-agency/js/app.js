@@ -208,20 +208,18 @@ function procesarYRenderizar() {
 
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
-        // Hoja 2 (Intentos de llamada) -> Filtramos por "Fecha 1er llamada" (el momento del intento)
-        contactados: window.AppData.raw.contactados.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha 1er llamada')), 
+        
+        // Hoja 2 (Intentos de llamada) -> Le damos un "fallback" a la fecha para que no elimine filas de intentos extra
+        contactados: window.AppData.raw.contactados.filter(r => {
+            let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
+            return cumpleFiltro(r, 'Campaña', null, colDate);
+        }), 
+        
         // Hoja 3 (Llamadas Conectadas) -> Filtramos por "Fecha last call" o si falta, "Fecha Lead entra"
         llamadas: window.AppData.raw.llamadas.filter(r => {
             let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
             return cumpleFiltro(r, 'Campaña', null, col);
         }),
-        citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
-        shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
-        noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
-        cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
-        ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
-        dateRange: { start, end } 
-    };
 
     if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
     if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
