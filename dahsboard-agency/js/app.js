@@ -145,8 +145,47 @@ function getRangoFechas() {
 
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
-    
+
+    // --- NUEVO CEREBRO DE ATRIBUCIÓN MAESTRA ---
+    // 1. Mapeamos el teléfono de cada Lead con su Campaña exacta (La fuente de la verdad)
+    const numeroACampana = {};
+    window.AppData.raw.leads.forEach(l => {
+        let num = String(l['Numero'] || l['Teléfono'] || l['Telefono'] || l['Phone'] || l['Número'] || '').trim();
+        let camp = String(l['Campaña'] || '').trim();
+        if (num !== '' && camp !== '') numeroACampana[num] = camp;
+    });
+
+    // 2. Mapeamos el teléfono con el Operador (desde Citas)
+    const numeroAOperador = {};
+    window.AppData.raw.citas.forEach(c => {
+        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
+        let op = String(c['Operador'] || '').trim();
+        if (num !== '' && op !== '') numeroAOperador[num] = op;
+    });
+
+    // 3. Unificamos todas las hojas inyectando la Campaña y Operador correctos usando el Teléfono
+    ['contactados', 'llamadas', 'citas', 'shows', 'noShows', 'cancelados'].forEach(sheet => {
+        if(window.AppData.raw[sheet]) {
+            window.AppData.raw[sheet].forEach(row => {
+                let num = String(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número'] || '').trim();
+                
+                // ATRIBUCIÓN DE CAMPAÑA: Forzamos la campaña del Lead original para que el filtro nunca falle
+                if (numeroACampana[num]) {
+                    row['Campaña'] = numeroACampana[num];
+                } else if (!row['Campaña'] || String(row['Campaña']).trim() === '') {
+                    row['Campaña'] = 'Desconocida';
+                }
+                
+                // ATRIBUCIÓN DE OPERADOR
+                if (!row['Operador'] || String(row['Operador']).trim() === '') {
+                    row['Operador'] = numeroAOperador[num] || 'Sin Asignar';
+                }
+            });
+        }
+    });
+
     const { start, end } = getRangoFechas();
+    
     
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
