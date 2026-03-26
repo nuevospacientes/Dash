@@ -609,3 +609,41 @@ body {
     font-weight: 800;
     color: var(--text-main) !important;
 }
+
+/* ==========================================
+   SCROLLBARS MINIMALISTAS (Global)
+   ========================================== */
+
+/* Para Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Para Chrome, Safari y Edge */
+::-webkit-scrollbar {
+    width: 6px;  /* Ancho de la barra vertical */
+    height: 6px; /* Alto de la barra horizontal (para tablas) */
+}
+
+/* El "carril" por donde baja la barra (transparente para que no manche el fondo) */
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* La barrita que se mueve */
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1); /* Casi invisible por defecto */
+    border-radius: 10px; /* Bordes bien redondeados */
+    transition: background 0.3s ease;
+}
+
+/* Cuando le pasas el mouse por encima a la barrita */
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3); /* Se ilumina un poco para que sepas que la puedes agarrar */
+}
+
+/* Esquina donde se cruzan la barra vertical y horizontal en las tablas */
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
