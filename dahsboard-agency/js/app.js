@@ -173,11 +173,15 @@ function procesarYRenderizar() {
     const opFilter = document.getElementById('global-operator-filter');
     const prevCamp = campFilter.value; const prevOp = opFilter.value;
 
-    campFilter.innerHTML = '<option value="all" selected>Todas las Campañas</option>';
-    opFilter.innerHTML = '<option value="all" selected>Todos los Operadores</option>';
+    // Evitamos repintar el DOM en cada iteración armando todo el HTML primero
+    let campHTML = '<option value="all" selected>Todas las Campañas</option>';
+    let opHTML = '<option value="all" selected>Todos los Operadores</option>';
 
-    Array.from(campañasDisponibles).sort().forEach(camp => { campFilter.innerHTML += `<option value="${camp}">${camp}</option>`; });
-    Array.from(operadoresDisponibles).sort().forEach(op => { opFilter.innerHTML += `<option value="${op}">${op}</option>`; });
+    Array.from(campañasDisponibles).sort().forEach(camp => { campHTML += `<option value="${camp}">${camp}</option>`; });
+    Array.from(operadoresDisponibles).sort().forEach(op => { opHTML += `<option value="${op}">${op}</option>`; });
+
+    campFilter.innerHTML = campHTML;
+    opFilter.innerHTML = opHTML;
 
     campFilter.value = campañasDisponibles.has(prevCamp) ? prevCamp : 'all';
     opFilter.value = operadoresDisponibles.has(prevOp) ? prevOp : 'all';
