@@ -303,29 +303,55 @@
             </section>
 
             <section id="view-tracker" class="view-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 class="section-title" style="margin-bottom: 0;">Performance y Embudos de Conversión</h2>
-                </div>
-
-                <div class="grid-cards" style="grid-template-columns: repeat(5, 1fr);">
+            <div class="grid-cards" style="grid-template-columns: repeat(5, 1fr);">
                     <div class="kpi-card">
-                        <div class="metric-title">Speed To Lead Promedio</div>
+                        <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
+                            Speed To Lead
+                            <div class="tooltip-container">
+                                <i class="fa-regular fa-circle-question"></i>
+                                <span class="tooltip-text">Tiempo promedio que transcurre desde que el lead ingresa hasta el primer intento de llamada (solo cuenta dentro de horario laboral).</span>
+                            </div>
+                        </div>
                         <div class="metric-value">0 min</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="metric-title">Pick Up Rate (>5s)</div>
+                        <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
+                            Pick Up Rate
+                            <div class="tooltip-container">
+                                <i class="fa-regular fa-circle-question"></i>
+                                <span class="tooltip-text">Porcentaje de llamadas emitidas que fueron contestadas por el prospecto y duraron más de 5 segundos.</span>
+                            </div>
+                        </div>
                         <div class="metric-value">0%</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="metric-title">Connection Rate (>15s)</div>
+                        <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
+                            Connection Rate
+                            <div class="tooltip-container">
+                                <i class="fa-regular fa-circle-question"></i>
+                                <span class="tooltip-text">Porcentaje de llamadas donde se logró retener al prospecto en línea por más de 15 segundos.</span>
+                            </div>
+                        </div>
                         <div class="metric-value">0%</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="metric-title">Conversación Efectiva (>60s)</div>
+                        <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
+                            Conversación Efectiva
+                            <div class="tooltip-container">
+                                <i class="fa-regular fa-circle-question"></i>
+                                <span class="tooltip-text">Porcentaje de llamadas que se convirtieron en una conversación real, superando la barrera de los 60 segundos.</span>
+                            </div>
+                        </div>
                         <div class="metric-value">0%</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="metric-title">Total Llamadas Emitidas</div>
+                        <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
+                            Llamadas Emitidas
+                            <div class="tooltip-container">
+                                <i class="fa-regular fa-circle-question"></i>
+                                <span class="tooltip-text">Cantidad total de intentos de llamada (marcas) realizadas por los operadores en el periodo.</span>
+                            </div>
+                        </div>
                         <div class="metric-value">0</div>
                     </div>
                 </div>
