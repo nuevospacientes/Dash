@@ -300,3 +300,192 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRef = document.getElementById('btn-refresh');
     if(btnRef) btnRef.addEventListener('click', loadAllData);
 });
+
+/* ==========================================
+   🕵️ DETECTIVE DE LEADS (Rastreador detallado)
+   ========================================== */
+
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('btn-search-lead');
+
+    if (searchInput && searchBtn) {
+        searchBtn.addEventListener('click', window.ejecutarDetective);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') window.ejecutarDetective();
+        });
+    }
+});
+
+window.ejecutarDetective = function() {
+    const container = document.getElementById('search-results');
+    const input = document.getElementById('search-input');
+    if (!container || !input) return;
+
+    const termRaw = input.value.toLowerCase().trim();
+    if (termRaw.length < 3) {
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--accent-warning); background: var(--bg-panel); border-radius: 8px;">Por favor ingresa al menos 3 caracteres para buscar (Nombre, Correo o Teléfono).</div>';
+        container.style.display = 'block';
+        return;
+    }
+
+    container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--brand-primary);"><i class="fa-solid fa-circle-notch fa-spin"></i> Auditando bases de datos...</div>';
+    container.style.display = 'block';
+
+    setTimeout(() => {
+        const rawData = window.AppData.raw;
+        if (!rawData || !rawData.leads) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--accent-danger);">No hay bases de datos cargadas en el sistema.</div>';
+            return;
+        }
+
+        const termPhone = termRaw.replace(/[^0-9]/g, '');
+        const matchRecord = (row) => {
+            const name = String(row['Nombre'] || row['First Name'] || row['Lead Name'] || '').toLowerCase();
+            const email = String(row['Email'] || row['Email '] || '').toLowerCase();
+            const phoneStr = String(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número'] || '');
+            const phoneClean = phoneStr.replace(/[^0-9]/g, '');
+
+            if (name.includes(termRaw)) return true;
+            if (email.includes(termRaw)) return true;
+            if (termPhone.length >= 4 && phoneClean.includes(termPhone)) return true;
+            if (phoneStr.toLowerCase().includes(termRaw)) return true; 
+            return false;
+        };
+
+        let perfiles = {};
+
+        const addEvent = (id, type, dateStr, details, badgeColor, icon, row) => {
+            if (!perfiles[id]) {
+                perfiles[id] = {
+                    nombre: row['Nombre'] || row['First Name'] || 'Desconocido',
+                    telefono: row['Numero'] || row['Teléfono'] || row['Phone'] || '-',
+                    email: row['Email'] || row['Email '] || '-',
+                    campana: row['Campaña'] || row['Campaña (UTM)'] || row['Origen Campaña'] || 'Desconocida',
+                    events: []
+                };
+            }
+            
+            let timestamp = 0;
+            if (dateStr) {
+                let parsed = typeof parseDateSpanish === 'function' ? parseDateSpanish(dateStr, row, 'dummy') : new Date(dateStr).getTime();
+                if (parsed) timestamp = parsed;
+            }
+
+            perfiles[id].events.push({ type, dateStr: dateStr || 'Fecha no registrada', details, badgeColor, icon, timestamp, row });
+        };
+
+        // 1. ESPIA EN LEADS
+        rawData.leads.filter(matchRecord).forEach(r => {
+            let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
+            addEvent(id, 'INGRESO LEAD', r['Fecha entrada lead'] || r['Lead entry date'], `El lead entró al sistema.`, 'var(--border-color)', 'fa-user-plus', r);
+        });
+
+        // 2. ESPIA EN INTENTOS DE LLAMADA
+        if(rawData.contactados) {
+            rawData.contactados.filter(matchRecord).forEach(r => {
+                let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
+                let op = r['Operador'] || 'un agente';
+                addEvent(id, 'INTENTO DE LLAMADA', r['Fecha 1er llamada'] || r['Fecha Lead entra'], `El operador <b>${op}</b> realizó una marca/intento.`, 'var(--text-muted)', 'fa-phone', r);
+            });
+        }
+
+        // 3. ESPIA EN LLAMADAS CONECTADAS
+        if(rawData.llamadas) {
+            rawData.llamadas.filter(matchRecord).forEach(r => {
+                let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
+                let op = r['Operador'] || 'un agente';
+                addEvent(id, 'LLAMADA CONECTADA', r['Fecha last call'], `Llamada exitosa atendida por <b>${op}</b>.`, '#bc13fe', 'fa-phone-volume', r);
+            });
+        }
+
+        // 4. ESPIA EN CITAS
+        if(rawData.citas) {
+            rawData.citas.filter(matchRecord).forEach(r => {
+                let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
+                let citaPara = r['Cita Programada en'] || r['Fecha Cita Solicitada'] || 'Pendiente';
+                let op = r['Operador'] || 'un agente';
+                addEvent(id, 'CITA AGENDADA', r['Cita generada'], `<b>${op}</b> agendó una cita para la fecha: <b>${citaPara}</b>.`, 'var(--brand-primary)', 'fa-calendar-check', r);
+            });
+        }
+
+        // 5. ESPIA EN SHOWS Y CANCELACIONES
+        const finales = [
+            { sheet: 'shows', type: 'SHOW / ASISTENCIA', color: 'var(--accent-success)', icon: 'fa-check-double' },
+            { sheet: 'noShows', type: 'NO SHOW (Faltó)', color: 'var(--accent-warning)', icon: 'fa-user-xmark' },
+            { sheet: 'cancelados', type: 'CANCELADO', color: 'var(--accent-danger)', icon: 'fa-ban' }
+        ];
+
+        finales.forEach(cfg => {
+            if(rawData[cfg.sheet]) {
+                rawData[cfg.sheet].filter(matchRecord).forEach(r => {
+                    let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
+                    let dep = r['Deposito'] && String(r['Deposito']).toLowerCase() !== 'sin deposito' ? `Dejó depósito vía: ${r['Deposito']}` : 'No dejó depósito.';
+                    addEvent(id, cfg.type, r['Fecha Visita'], `Resultado de la cita. ${dep}`, cfg.color, cfg.icon, r);
+                });
+            }
+        });
+
+        // RENDERIZADO VISUAL
+        let html = '';
+        const keys = Object.keys(perfiles);
+
+        if (keys.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 30px; background: var(--bg-panel); border-radius: 8px; border: 1px dashed var(--border-color);"><i class="fa-solid fa-magnifying-glass" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 10px;"></i><br>No hay rastro de este lead en ninguna base de datos.</div>';
+            return;
+        }
+
+        keys.forEach(k => {
+            let p = perfiles[k];
+            p.events.sort((a,b) => a.timestamp - b.timestamp);
+
+            let eventsHtml = p.events.map((ev, index) => {
+                let isLast = index === p.events.length - 1;
+                return `
+                    <div style="display: flex; gap: 15px; margin-bottom: ${isLast ? '0' : '20px'}; position: relative;">
+                        ${!isLast ? `<div style="width: 2px; background: var(--border-color); position: absolute; left: 14px; top: 30px; bottom: -20px; z-index: 0;"></div>` : ''}
+                        
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--bg-panel); border: 2px solid ${ev.badgeColor}; display: flex; align-items: center; justify-content: center; z-index: 1; flex-shrink: 0; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+                            <i class="fa-solid ${ev.icon}" style="color: ${ev.badgeColor}; font-size: 0.75rem;"></i>
+                        </div>
+                        
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 8px; flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                <div style="font-weight: 700; color: ${ev.badgeColor}; font-size: 0.9rem;">${ev.type}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); background: var(--bg-input); padding: 2px 6px; border-radius: 4px;">${ev.dateStr}</div>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-main); line-height: 1.4;">${ev.details}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            html += `
+                <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 25px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    <div style="background: rgba(0,0,0,0.2); padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 15px; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold;">
+                                ${p.nombre.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; color: var(--text-main); font-size: 1.3rem;">${p.nombre}</h3>
+                                <div style="color: var(--brand-primary); font-size: 0.85rem; margin-top: 5px; font-weight: 600;"><i class="fa-solid fa-bullhorn"></i> ${p.campana}</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: var(--text-main); font-size: 0.95rem; font-weight: 500;"><i class="fa-solid fa-phone" style="color: var(--text-muted);"></i> ${p.telefono}</div>
+                            <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 5px;"><i class="fa-solid fa-envelope"></i> ${p.email}</div>
+                        </div>
+                    </div>
+                    <div style="padding: 25px;">
+                        <h4 style="margin-top: 0; margin-bottom: 25px; color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Línea de Tiempo del Embudo</h4>
+                        ${eventsHtml}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+    }, 300); // Pequeño delay para mostrar el spinner y no congelar la pantalla
+};
