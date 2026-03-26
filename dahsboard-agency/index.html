@@ -550,17 +550,21 @@
             </div>
 
             <div id="modal-ads-kpi" class="modal-overlay" style="display: none; z-index: 10000;">
-                <div class="modal-content" style="border-top: 4px solid var(--brand-primary); max-width: 600px;">
-                    <div class="modal-header">
+                <div class="modal-content" style="border-top: 4px solid var(--brand-primary); max-width: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+                    
+                    <div class="modal-header" style="flex-shrink: 0;">
                         <h2><i class="fa-solid fa-sliders"></i> Personalizar Tarjetas</h2>
                         <button onclick="document.getElementById('modal-ads-kpi').style.display='none'" class="close-btn">&times;</button>
                     </div>
-                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Arrastra desde los iconos (<i class="fa-solid fa-grip-vertical"></i>) para reordenar y elige qué métricas mostrar en tu panel.</p>
                     
-                    <div id="kpi-config-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px; flex-shrink: 0;">
+                        Arrastra desde los iconos (<i class="fa-solid fa-grip-vertical"></i>) para reordenar y elige qué métricas mostrar en tu panel.
+                    </p>
+                    
+                    <div id="kpi-config-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; overflow-y: auto; flex-grow: 1; padding-right: 5px;">
                         </div>
 
-                    <button onclick="adsApp.saveKpiConfig()" class="btn-primary w-full">Guardar y Aplicar</button>
+                    <button onclick="adsApp.saveKpiConfig()" class="btn-primary w-full" style="flex-shrink: 0;">Guardar y Aplicar</button>
                 </div>
             </div>
 
