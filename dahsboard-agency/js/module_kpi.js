@@ -15,33 +15,40 @@ function getTzOffsetMins(timeZone) {
 }
 
 function getBusinessMinutes(dateStart, dateEnd) {
-    let current = new Date(dateStart);
+    let start = new Date(dateStart);
     let end = new Date(dateEnd);
-    let minutes = 0;
 
-    while (current.getDay() === 0) { 
-        current.setDate(current.getDate() + 1);
-        current.setHours(9, 0, 0, 0);
+    // 1. REGLA DE NEGOCIO: Si el contacto fue un domingo o fuera de horario (antes de 9am o después de las 6pm)
+    let endDay = end.getDay();
+    let endHour = end.getHours();
+    if (endDay === 0 || endHour < 9 || endHour >= 18) {
+        return null; // Retornamos null para que NO se promedie en el Speed To Lead
     }
 
-    if (current.getHours() < 9) { current.setHours(9, 0, 0, 0); }
-    else if (current.getHours() >= 18) { 
-        current.setDate(current.getDate() + 1); 
-        current.setHours(9, 0, 0, 0); 
-        while (current.getDay() === 0) { 
-            current.setDate(current.getDate() + 1);
-            current.setHours(9, 0, 0, 0);
+    // 2. Ajustar el inicio (cuando entró el lead) si fue fuera de horario
+    let startDay = start.getDay();
+    let startHour = start.getHours();
+
+    if (startDay === 0) { // Si entró en Domingo -> Empieza a correr el Lunes a las 9am
+        start.setDate(start.getDate() + 1);
+        start.setHours(9, 0, 0, 0);
+    } else if (startHour < 9) { // Si entró antes de las 9am -> Empieza a las 9am de hoy
+        start.setHours(9, 0, 0, 0);
+    } else if (startHour >= 18) { // Si entró a las 6pm o después -> Empieza a las 9am de mañana
+        start.setDate(start.getDate() + 1);
+        start.setHours(9, 0, 0, 0);
+        if (start.getDay() === 0) { // Si "mañana" es domingo, lo saltamos al lunes
+            start.setDate(start.getDate() + 1);
         }
     }
 
-    if (end.getHours() >= 18) { end.setHours(18, 0, 0, 0); }
-    else if (end.getHours() < 9) { 
-        end.setDate(end.getDate() - 1); 
-        end.setHours(18, 0, 0, 0); 
-    }
+    // Si por error de base de datos el inicio quedó después del final
+    if (start > end) return null;
 
-    if (current > end) return 0;
+    let minutes = 0;
+    let current = new Date(start);
 
+    // Sumar días completos de 9 horas (540 minutos) saltando los domingos
     while (current.toDateString() !== end.toDateString()) {
         if (current.getDay() !== 0) {
             let endOfDay = new Date(current);
@@ -51,10 +58,13 @@ function getBusinessMinutes(dateStart, dateEnd) {
         current.setDate(current.getDate() + 1);
         current.setHours(9, 0, 0, 0);
     }
-    
-    if (current.getDay() !== 0) { minutes += (end - current) / 60000; }
-    
-    return minutes > 0 ? minutes : 0;
+
+    // Sumar los minutos del día en que finalmente fue contactado
+    if (current.getDay() !== 0) {
+        minutes += (end - current) / 60000;
+    }
+
+    return minutes;
 }
 
 function renderizarVistaGeneral(dataFiltrada) {
@@ -92,38 +102,40 @@ function renderizarVistaGeneral(dataFiltrada) {
     const globalOffset = getTzOffsetMins(globalTz);
 
     dataFiltrada.contactados.forEach(c => {
-        // También usamos el Numero único para el STL para no inflar repeticiones
-        let id = String(c['Numero'] || '').trim();
+        let id = String(c['Numero'] || '').trim(); // Usamos Número como acordamos antes
         if (id === '') return;
 
-        let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
-        let hEntrada = c['Hora Generado'] || c['Hora entrada'];
-        let fLlamada = c['Fecha 1er llamada'];
-        let hLlamada = c['Hora 1er llamada'];
-        let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
+        let cacheKey = '_stl_' + globalTz;
+        let bMinutes = c[cacheKey]; // Buscamos en caché
 
-        if (fEntrada && hEntrada && fLlamada && hLlamada) {
-            let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
-            let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
+        if (bMinutes === undefined) {
+            let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
+            let hEntrada = c['Hora Generado'] || c['Hora entrada'];
+            let fLlamada = c['Fecha 1er llamada'];
+            let hLlamada = c['Hora 1er llamada'];
+            let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
 
-            if (tEntrada && tLlamada) {
-                let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-                let timeE = parseTime(hEntrada);
-                let timeL = parseTime(hLlamada);
+            if (fEntrada && hEntrada && fLlamada && hLlamada) {
+                let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
+                let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
+                if (tEntrada && tLlamada) {
+                    let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
+                    let timeE = parseTime(hEntrada); let timeL = parseTime(hLlamada);
+                    let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
+                    let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
+                    let diffMins = globalOffset - getTzOffsetMins(leadTz);
+                    dateE.setMinutes(dateE.getMinutes() + diffMins); dateL.setMinutes(dateL.getMinutes() + diffMins);
+                    
+                    bMinutes = getBusinessMinutes(dateE, dateL);
+                } else { bMinutes = null; }
+            } else { bMinutes = null; }
+            
+            c[cacheKey] = bMinutes; // Guardamos en la memoria temporal
+        }
 
-                let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
-                let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
-
-                let diffMins = globalOffset - getTzOffsetMins(leadTz);
-                dateE.setMinutes(dateE.getMinutes() + diffMins);
-                dateL.setMinutes(dateL.getMinutes() + diffMins);
-
-                let bMinutes = getBusinessMinutes(dateE, dateL);
-                
-                if (stlMap[id] === undefined || bMinutes < stlMap[id]) {
-                    stlMap[id] = bMinutes;
-                }
-            }
+        // Si la llamada fue fuera de horario, bMinutes será null y SE IGNORA aquí (pero el lead sí contó arriba)
+        if (bMinutes !== null && (stlMap[id] === undefined || bMinutes < stlMap[id])) {
+            stlMap[id] = bMinutes;
         }
     });
 
