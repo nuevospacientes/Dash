@@ -466,7 +466,10 @@
             </section>
             <section id="view-ads" class="view-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h2 class="section-title" style="margin-bottom: 0;">Buying Media & Control Financiero</h2>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <h2 class="section-title" style="margin-bottom: 0;">Buying Media & Control Financiero</h2>
+                        <button class="icon-btn" title="Configurar Tarjetas" style="border: none; background: rgba(255,255,255,0.05);"><i class="fa-solid fa-sliders"></i></button>
+                    </div>
                     <div style="display: flex; gap: 10px;">
                         <button onclick="adsApp.openCustomColModal()" class="btn-primary" style="background: var(--accent-success);"><i class="fa-solid fa-plus"></i> Crear Métrica</button>
                         <div class="relative-dropdown" id="ads-col-config-container">
@@ -477,11 +480,16 @@
                     </div>
                 </div>
 
-                <div class="grid-cards" style="grid-template-columns: repeat(6, 1fr); margin-bottom: 20px;">
+                <div class="grid-cards" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 20px;">
                     <div class="kpi-card" style="border-left: 4px solid var(--border-color);">
                         <div class="metric-title">Leads Totales</div>
                         <div class="metric-value" id="ads-kpi-leads">0</div>
-                        <div class="metric-subtitle">CPL Promedio: <span id="ads-kpi-cpl">$0.00</span></div>
+                        <div class="metric-subtitle">CPL: <span id="ads-kpi-cpl">$0.00</span></div>
+                    </div>
+                    <div class="kpi-card" style="border-left: 4px solid var(--brand-primary);">
+                        <div class="metric-title">Leads Contactados</div>
+                        <div class="metric-value" style="color: var(--brand-primary);" id="ads-kpi-contactados">0</div>
+                        <div class="metric-subtitle">Costo x Contacto: <span id="ads-kpi-cpq">$0.00</span></div>
                     </div>
                     <div class="kpi-card" style="border-left: 4px solid var(--accent-warning);">
                         <div class="metric-title">Asistencias (Shows)</div>
@@ -498,27 +506,31 @@
                         <div class="metric-value" style="color: var(--accent-danger);" id="ads-kpi-gasto">$0.00</div>
                         <div class="metric-subtitle">CPM Promedio: <span id="ads-kpi-cpm">$0.00</span></div>
                     </div>
-                    <div class="kpi-card" style="border-left: 4px solid #10b981;">
-                        <div class="metric-title">Ingresos Generados</div>
-                        <div class="metric-value" style="color: #10b981;" id="ads-kpi-ingresos">$0.00</div>
-                        <div class="metric-subtitle">Ticket Promedio: <span id="ads-kpi-aov">$0.00</span></div>
-                    </div>
-                    <div class="kpi-card" style="border-left: 4px solid #bc13fe; background: linear-gradient(135deg, rgba(188,19,254,0.05), transparent);">
-                        <div class="metric-title" style="color: #d884ff;">ROAS Global</div>
-                        <div class="metric-value" style="color: #bc13fe;" id="ads-kpi-roas">0.00x</div>
-                        <div class="metric-subtitle">Profit: <span id="ads-kpi-profit">$0.00</span></div>
-                    </div>
                 </div>
 
-                <div class="kpi-card" style="padding: 0; overflow: hidden;">
-                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                        <table class="data-table" id="ads-main-table">
-                            <thead style="background: var(--bg-input); border-bottom: 2px solid var(--border-color); position: sticky; top: 0; z-index: 10;">
+                <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center; background: var(--bg-panel); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color);">
+                    <div style="flex: 1; position: relative;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                        <input type="text" id="ads-search-camp" placeholder="Buscar campaña o cliente..." style="width: 100%; padding: 10px 10px 10px 40px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main);" onkeyup="adsApp.renderTable()">
+                    </div>
+                    <select id="ads-status-filter" class="filter-select" style="padding: 10px; min-width: 200px;" onchange="adsApp.renderTable()">
+                        <option value="all">Todas las Campañas</option>
+                        <option value="active" selected>🟢 Campañas Activas</option>
+                        <option value="inactive">🔴 Campañas Inactivas</option>
+                    </select>
+                </div>
+
+                <div class="kpi-card" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+                    <div class="table-responsive" style="max-height: 550px; overflow-y: auto; overflow-x: auto;">
+                        <table class="data-table" id="ads-main-table" style="table-layout: fixed; width: auto; min-width: 100%;">
+                            <thead style="background: var(--bg-input); position: sticky; top: 0; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
                                 <tr id="ads-table-header-row"></tr>
                             </thead>
                             <tbody id="ads-table-body">
                                 <tr><td colspan="20" style="text-align: center; padding: 30px; color: var(--text-muted);">Esperando datos...</td></tr>
                             </tbody>
+                            <tfoot id="ads-table-foot">
+                                </tfoot>
                         </table>
                     </div>
                 </div>
