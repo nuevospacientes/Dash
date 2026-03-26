@@ -79,25 +79,40 @@ window.adsApp = {
             if(!c || String(c).trim() === '') c = 'Desconocida';
             if(!stats[c]) stats[c] = {
                 campana: c, gasto: 0, clics: 0, impresiones: 0,
-                leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0
+                leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0,
+                isActive: false // Nuevo campo para el filtro
             };
             return c;
         };
+
+        // Lógica para detectar si está "Activa" (Gasto entre ayer y hoy)
+        let now = new Date();
+        let startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
 
         // 1. META ADS
         if (dataFiltrada.ads) {
             dataFiltrada.ads.forEach(ad => {
                 let c = init(ad['Campaign name']);
-                stats[c].gasto += parseFloat(String(ad['Amount spent']||'0').replace(/[^0-9.-]+/g,""))||0;
-                stats[c].clics += parseInt(ad['Clicks (all)']||0)||0;
-                stats[c].impresiones += parseInt(ad['Impressions']||0)||0;
+                let amt = parseFloat(String(ad['Amount spent']||'0').replace(/[^0-9.-]+/g,""))||0;
+                
+                if (amt > 0) {
+                    stats[c].gasto += amt;
+                    stats[c].clics += parseInt(ad['Clicks (all)']||0)||0;
+                    stats[c].impresiones += parseInt(ad['Impressions']||0)||0;
+
+                    // Si la fila tiene gasto y es de ayer o hoy, la marcamos como activa
+                    let rowTime = null;
+                    if (ad['Day']) {
+                        let p = String(ad['Day']).trim().split('-');
+                        if(p.length === 3) rowTime = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])).getTime();
+                    }
+                    if (rowTime && rowTime >= startOfYesterday) stats[c].isActive = true;
+                }
             });
         }
 
-        // 2. LEADS
         dataFiltrada.leads.forEach(r => { stats[init(r['Campaña'])].leads++; });
 
-        // 3. CONTACTADOS (Únicos por teléfono)
         let leadsContactadosSet = {};
         dataFiltrada.contactados.forEach(r => {
             let c = init(r['Campaña']);
@@ -109,23 +124,19 @@ window.adsApp = {
         });
         for(let c in leadsContactadosSet) stats[c].contactados = leadsContactadosSet[c].size;
 
-        // 4. CITAS Y SHOWS
         dataFiltrada.citas.forEach(r => { stats[init(r['Campaña'])].citas++; });
         dataFiltrada.shows.forEach(r => { stats[init(r['Campaña'])].shows++; });
 
-        // 5. VENTAS E INGRESOS
         dataFiltrada.shows.filter(s => {
             const dep = (s['Deposito'] || '').toLowerCase().trim();
             return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
         }).forEach(s => {
             let c = init(s['Campaña']);
             stats[c].ventas++;
-            
-            // Ya no asumimos 500. Si la columna "Monto", "Monto ($)" o "Precio" existe, toma el valor. Si no, suma 0.
             let amt = parseFloat(String(s['Monto ($)'] || s['Monto'] || s['Precio'] || '0').replace(/[^0-9.-]+/g,""));
             stats[c].ingresos += isNaN(amt) ? 0 : amt;
         });
-        // 6. CALCULAR FÓRMULAS BASE Y PERSONALIZADAS
+
         let arr = Object.values(stats).map(r => {
             r.cpl = r.leads > 0 ? r.gasto / r.leads : 0;
             r.cpq = r.contactados > 0 ? r.gasto / r.contactados : 0;
@@ -164,33 +175,54 @@ window.adsApp = {
     renderTable: function() {
         const thead = document.getElementById('ads-table-header-row');
         const tbody = document.getElementById('ads-table-body');
-        if(!thead || !tbody) return;
+        const tfoot = document.getElementById('ads-table-foot');
+        if(!thead || !tbody || !tfoot) return;
         
-        thead.innerHTML = ''; tbody.innerHTML = '';
+        thead.innerHTML = ''; tbody.innerHTML = ''; tfoot.innerHTML = '';
         let visibleCols = this.tableColumns.filter(c => c.visible);
 
-        // Renderizar Encabezados Draggables
+        // 1. Obtener valores de los filtros
+        let searchTerm = document.getElementById('ads-search-camp') ? document.getElementById('ads-search-camp').value.toLowerCase() : '';
+        let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'active';
+
+        // Renderizar Encabezados Draggables y Resizables
         visibleCols.forEach((col) => {
             const th = document.createElement('th');
             th.className = `draggable-header`;
             th.style.textAlign = col.align;
+            // Ancho inicial para que no se aprieten
+            th.style.minWidth = col.id === 'campana' ? '250px' : '130px'; 
             th.draggable = true; 
             th.innerHTML = col.label;
             
+            // Div para redimensionar (arrastrar ancho)
+            const resizer = document.createElement('div');
+            resizer.className = 'resizer';
+            th.appendChild(resizer);
+            this.createResizableColumn(th, resizer);
+
             th.addEventListener('dragstart', (e) => this.handleDragStart(e, col.id));
             th.addEventListener('dragover', (e) => this.handleDragOver(e));
             th.addEventListener('dragleave', (e) => this.handleDragLeave(e));
             th.addEventListener('drop', (e) => this.handleDrop(e, col.id));
             th.addEventListener('dragend', (e) => this.handleDragEnd(e));
-            th.addEventListener('click', () => this.sortTable(col.id));
+            // Prevenir sort si se está haciendo clic en el resizer
+            th.addEventListener('click', (e) => { if(!e.target.classList.contains('resizer')) this.sortTable(col.id); });
             
             thead.appendChild(th);
         });
 
+        // 2. Aplicar Filtros a la Data
+        let filteredData = this.consolidatedData.filter(row => {
+            if (searchTerm && !row.campana.toLowerCase().includes(searchTerm)) return false;
+            if (statusFilter === 'active' && !row.isActive) return false;
+            if (statusFilter === 'inactive' && row.isActive) return false;
+            return true;
+        });
+
         let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0 };
 
-        // Renderizar Filas
-        this.consolidatedData.forEach(row => {
+        filteredData.forEach(row => {
             t.gasto += row.gasto||0; t.clics += row.clics||0; t.impresiones += row.impresiones||0;
             t.leads += row.leads||0; t.contactados += row.contactados||0; t.citas += row.citas||0;
             t.shows += row.shows||0; t.ventas += row.ventas||0; t.ingresos += row.ingresos||0;
@@ -214,10 +246,10 @@ window.adsApp = {
             tbody.appendChild(tr);
         });
 
-        if(this.consolidatedData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${visibleCols.length}" style="text-align: center; padding: 20px; color: var(--text-muted);">Sin resultados.</td></tr>`;
+        if(filteredData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${visibleCols.length}" style="text-align: center; padding: 20px; color: var(--text-muted);">No hay campañas que coincidan con tu búsqueda o filtro.</td></tr>`;
         } else {
-            // Fila de Totales
+            // 3. Fila de Totales en el TFOOT
             t.cpl = t.leads > 0 ? t.gasto / t.leads : 0;
             t.cpq = t.contactados > 0 ? t.gasto / t.contactados : 0;
             t.cp_cita = t.citas > 0 ? t.gasto / t.citas : 0;
@@ -228,16 +260,12 @@ window.adsApp = {
             this.customColumns.forEach(cc => { t[cc.id] = this.evaluateFormula(cc.formula, t); });
 
             const trTotal = document.createElement('tr');
-            trTotal.style.backgroundColor = 'rgba(0,0,0,0.2)';
-            trTotal.style.borderTop = '2px solid var(--brand-primary)';
-            trTotal.style.fontWeight = 'bold';
             
             visibleCols.forEach((col, idx) => {
                 const td = document.createElement('td');
                 td.style.textAlign = col.align;
-                if(col.color) td.style.color = col.color;
                 
-                if (idx === 0) td.innerHTML = 'TOTAL GLOBAL';
+                if (idx === 0) td.innerHTML = 'TOTAL GLOBAL FILTRADO';
                 else {
                     let val = t[col.id] || 0;
                     if (col.type === 'number') td.innerHTML = val.toLocaleString(undefined, {maximumFractionDigits: 2});
@@ -247,7 +275,7 @@ window.adsApp = {
                 }
                 trTotal.appendChild(td);
             });
-            tbody.appendChild(trTotal);
+            tfoot.appendChild(trTotal);
         }
 
         this.updateKPIs(t);
@@ -280,6 +308,55 @@ window.adsApp = {
         profitEl.style.color = profitColor;
     },
 
+   // Función para hacer las columnas redimensionables tipo Google Sheets
+    createResizableColumn: function(col, resizer) {
+        let x = 0; let w = 0;
+        const mouseDownHandler = function(e) {
+            x = e.clientX;
+            const styles = window.getComputedStyle(col);
+            w = parseInt(styles.width, 10);
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            resizer.classList.add('resizing');
+            // Quitar draggable mientras se redimensiona
+            col.setAttribute('draggable', false);
+        };
+        const mouseMoveHandler = function(e) {
+            const dx = e.clientX - x;
+            col.style.width = `${w + dx}px`;
+            col.style.minWidth = `${w + dx}px`;
+        };
+        const mouseUpHandler = function() {
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+            resizer.classList.remove('resizing');
+            col.setAttribute('draggable', true);
+        };
+        resizer.addEventListener('mousedown', mouseDownHandler);
+    },
+
+    updateKPIs: function(t) {
+        document.getElementById('ads-kpi-leads').innerText = t.leads.toLocaleString();
+        document.getElementById('ads-kpi-cpl').innerText = `$${t.cpl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        // Nueva tarjeta Contactados
+        let contactadosEl = document.getElementById('ads-kpi-contactados');
+        if(contactadosEl) {
+            contactadosEl.innerText = t.contactados.toLocaleString();
+            document.getElementById('ads-kpi-cpq').innerText = `$${t.cpq.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        
+        document.getElementById('ads-kpi-shows').innerText = t.shows.toLocaleString();
+        document.getElementById('ads-kpi-cps').innerText = `$${t.cp_show.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        document.getElementById('ads-kpi-ventas').innerText = t.ventas.toLocaleString();
+        document.getElementById('ads-kpi-cpa').innerText = `$${t.cpa.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        document.getElementById('ads-kpi-gasto').innerText = `$${t.gasto.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        let cpm = t.impresiones > 0 ? (t.gasto / t.impresiones) * 1000 : 0;
+        document.getElementById('ads-kpi-cpm').innerText = `$${cpm.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    },
+   
     // --- MANEJO DE COLUMNAS ---
     renderColumnSettings: function() {
         const container = document.getElementById('ads-col-menu');
