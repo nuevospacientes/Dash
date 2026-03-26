@@ -362,9 +362,9 @@
                         
                         <div class="kpi-card">
                             <h3 class="chart-title mb-4">🏆 Leaderboard: Operadores</h3>
-                            <div class="table-responsive">
+                           <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
                                 <table class="data-table" id="tracker-op-table">
-                                    <thead>
+                                    <thead style="position: sticky; top: 0; background: var(--bg-panel); z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
                                         <tr>
                                             <th>Posición</th>
                                             <th data-sort="name" style="cursor:pointer; color:var(--text-main);">Operador <i class="fa-solid fa-sort"></i></th>
@@ -384,9 +384,9 @@
 
                         <div class="kpi-card">
                             <h3 class="chart-title mb-4">🎯 Leaderboard: Campañas</h3>
-                            <div class="table-responsive">
+                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
                                 <table class="data-table" id="tracker-camp-table">
-                                    <thead>
+                                    <thead style="position: sticky; top: 0; background: var(--bg-panel); z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
                                         <tr>
                                             <th>Posición</th>
                                             <th data-sort="name" style="cursor:pointer; color:var(--text-main);">Campaña <i class="fa-solid fa-sort"></i></th>
