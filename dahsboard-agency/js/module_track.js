@@ -170,9 +170,18 @@ function renderizarCallTracker(dataFiltrada) {
         });
     };
 
-    const renderRanking = (dataRows, tbodyId, btnId, isCamp) => {
-        const tbody = document.getElementById(tbodyId); const btn = document.getElementById(btnId);
-        if (!tbody) return; tbody.innerHTML = '';
+    const renderRanking = (dataRows, tableId, btnId, isCamp) => {
+        // 1. Buscamos la tabla completa
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        
+        // 2. Buscamos SOLO el cuerpo de la tabla (tbody) para proteger los encabezados (thead)
+        const tbody = table.querySelector('tbody');
+        const btn = document.getElementById(btnId);
+        if (!tbody) return; 
+        
+        // 3. Limpiamos solo los datos antiguos, el encabezado queda intacto
+        tbody.innerHTML = ''; 
 
         if (dataRows.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No hay datos suficientes</td></tr>';
