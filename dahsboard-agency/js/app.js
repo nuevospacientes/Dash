@@ -224,6 +224,13 @@ function procesarYRenderizar() {
             let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
             return cumpleFiltro(r, 'Campaña', null, col);
         }),
+        citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
+        shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
+        dateRange: { start, end } 
+    };
 
     if (typeof renderizarVistaGeneral === 'function') renderizarVistaGeneral(dataFiltrada);
     if (typeof renderizarCallTracker === 'function') renderizarCallTracker(dataFiltrada);
