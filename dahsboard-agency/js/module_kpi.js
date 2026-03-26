@@ -2,12 +2,8 @@
    MÓDULO DE KPIs (VISTA GENERAL)
    ========================================== */
 
-// ----------------------------------------------------
-// MOTOR 1: DETECTOR Y CONVERSOR DE ZONAS HORARIAS
-// ----------------------------------------------------
 function getTzOffsetMins(timeZone) {
     try {
-        // Usa la API nativa de internacionalización del navegador para sacar el GMT de cualquier país
         const str = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }).format(new Date());
         const match = str.match(/GMT([+-])(\d+)(?::(\d+))?/);
         if (!match) return 0;
@@ -15,21 +11,14 @@ function getTzOffsetMins(timeZone) {
         const hours = parseInt(match[2], 10);
         const mins = match[3] ? parseInt(match[3], 10) : 0;
         return sign * (hours * 60 + mins);
-    } catch(e) {
-        // Si hay error o no viene zona, asumimos GMT-5 (Perú/Colombia/EST)
-        return -300; 
-    }
+    } catch(e) { return -300; }
 }
 
-// ----------------------------------------------------
-// MOTOR 2: CÁLCULO ESTRICTO DE HORARIO COMERCIAL (Skipea Domingos)
-// ----------------------------------------------------
 function getBusinessMinutes(dateStart, dateEnd) {
     let current = new Date(dateStart);
     let end = new Date(dateEnd);
     let minutes = 0;
 
-    // Si el lead entra un Domingo (0), el reloj arranca el Lunes a las 9 AM
     while (current.getDay() === 0) { 
         current.setDate(current.getDate() + 1);
         current.setHours(9, 0, 0, 0);
@@ -63,88 +52,73 @@ function getBusinessMinutes(dateStart, dateEnd) {
         current.setHours(9, 0, 0, 0);
     }
     
-    if (current.getDay() !== 0) { 
-        minutes += (end - current) / 60000;
-    }
+    if (current.getDay() !== 0) { minutes += (end - current) / 60000; }
     
     return minutes > 0 ? minutes : 0;
 }
 
-// ----------------------------------------------------
-// FUNCIÓN PRINCIPAL DE RENDERIZADO
-// ----------------------------------------------------
 function renderizarVistaGeneral(dataFiltrada) {
-    // 1. Conteo Base
     const tLeads = dataFiltrada.leads.length;
     
-    // CORRECCIÓN: Contamos Leads Contactados ÚNICOS (Personas, ej. 211 en vez de 484)
+    // CORRECCIÓN EXACTA a =COUNTUNIQUE() usando la columna "Nombre"
     const leadsContactadosSet = new Set();
     dataFiltrada.contactados.forEach(c => {
-        let id = String(c['Numero'] || c['Nombre'] || '').trim();
-        if (id !== '') leadsContactadosSet.add(id);
+        let nombreUnico = String(c['Nombre'] || '').trim().toLowerCase();
+        if (nombreUnico !== '') leadsContactadosSet.add(nombreUnico);
     });
     const tContactados = leadsContactadosSet.size;
+
+    // Nueva Métrica: Llamadas Conectadas (Hoja 3)
+    const tLlamadasConectadas = dataFiltrada.llamadas.length;
+    const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
 
     const tCitas = dataFiltrada.citas.length;
     const tShows = dataFiltrada.shows.length;
     
-    // 2. Filtro de Ventas Reales
     const ventas = dataFiltrada.shows.filter(item => {
         const dep = (item['Deposito'] || '').toLowerCase().trim();
         return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
     });
     const tVentas = ventas.length;
 
-    // 3. Tasas de Conversión
     const contactRate = tLeads > 0 ? ((tContactados / tLeads) * 100).toFixed(1) : 0;
     const bookingRate = tLeads > 0 ? ((tCitas / tLeads) * 100).toFixed(1) : 0;
     const showRate = tCitas > 0 ? ((tShows / tCitas) * 100).toFixed(1) : 0;
     const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
-    // 4. Algoritmo de Speed To Lead (Cruce de Zonas + Horario Comercial)
     let stlMap = {}; 
-    
     const globalTz = document.getElementById('global-timezone').value;
     const globalOffset = getTzOffsetMins(globalTz);
 
     dataFiltrada.contactados.forEach(c => {
-        let id = String(c['Numero'] || c['Nombre'] || '').trim();
+        // También usamos el Nombre único para el STL para no inflar repeticiones
+        let id = String(c['Nombre'] || '').trim().toLowerCase();
         if (id === '') return;
 
         let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
         let hEntrada = c['Hora Generado'] || c['Hora entrada'];
         let fLlamada = c['Fecha 1er llamada'];
         let hLlamada = c['Hora 1er llamada'];
-        
-        // Buscamos la zona horaria del lead
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
 
         if (fEntrada && hEntrada && fLlamada && hLlamada) {
-            // Pasamos el nombre de la columna para aprovechar la memoria caché
             let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
             let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
 
             if (tEntrada && tLlamada) {
-                // Función que convierte "14:30:00" en {h: 14, m: 30, s: 0}
                 let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-                
                 let timeE = parseTime(hEntrada);
                 let timeL = parseTime(hLlamada);
 
                 let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
                 let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
 
-                // AJUSTE: Transformamos el tiempo local del lead al tiempo del dashboard seleccionado
-                let leadOffset = getTzOffsetMins(leadTz);
-                let diffMins = globalOffset - leadOffset;
-
+                let diffMins = globalOffset - getTzOffsetMins(leadTz);
                 dateE.setMinutes(dateE.getMinutes() + diffMins);
                 dateL.setMinutes(dateL.getMinutes() + diffMins);
 
-                // FILTRO: Aplicamos la protección de 9 AM a 6 PM sobre el horario ya estandarizado
                 let bMinutes = getBusinessMinutes(dateE, dateL);
                 
-                // CORRECCIÓN STL: Guardar solo el intento con menor tiempo de respuesta por persona
                 if (stlMap[id] === undefined || bMinutes < stlMap[id]) {
                     stlMap[id] = bMinutes;
                 }
@@ -158,13 +132,10 @@ function renderizarVistaGeneral(dataFiltrada) {
     let avgStlMinutes = validStlCount > 0 ? Math.round(totalMinutes / validStlCount) : 0;
     let stlDisplay = avgStlMinutes < 60 ? `${avgStlMinutes} min` : `${Math.floor(avgStlMinutes/60)}h ${avgStlMinutes%60}m`;
 
-    // 5. Metas y Finanzas Reales (Desde Meta Ads)
     const metas = JSON.parse(localStorage.getItem('np_metas')) || { ads: 3000, citas: 100 };
-    
     let inversionActual = 0;
     if (dataFiltrada.ads) {
         dataFiltrada.ads.forEach(ad => {
-            // Limpiamos el texto "$61.97" para convertirlo en número matemático
             let spent = String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "");
             inversionActual += parseFloat(spent) || 0;
         });
@@ -172,11 +143,10 @@ function renderizarVistaGeneral(dataFiltrada) {
 
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
     const cpa = tCitas > 0 ? (inversionActual / tCitas).toFixed(2) : 0;
-    // ==========================================
-    // A. RENDERIZAR TARJETAS 
-    // ==========================================
+
+    // INYECCIÓN A LAS 7 TARJETAS
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
-    if(kpiCards.length >= 6) {
+    if(kpiCards.length >= 7) {
         kpiCards[0].querySelector('.metric-value').innerText = tLeads;
         kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
         
@@ -185,41 +155,37 @@ function renderizarVistaGeneral(dataFiltrada) {
         kpiCards[2].querySelector('.metric-value').innerText = tContactados;
         kpiCards[2].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
         
-        kpiCards[3].querySelector('.metric-value').innerText = tCitas;
-        kpiCards[3].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa}`;
+        // La tarjeta NUEVA
+        kpiCards[3].querySelector('.metric-value').innerText = tLlamadasConectadas;
+        kpiCards[3].querySelector('.metric-subtitle').innerText = `Conectividad: ${conectividad}%`;
+
+        kpiCards[4].querySelector('.metric-value').innerText = tCitas;
+        kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa}`;
         
-        kpiCards[4].querySelector('.metric-value').innerText = tShows;
-        kpiCards[4].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
+        kpiCards[5].querySelector('.metric-value').innerText = tShows;
+        kpiCards[5].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
         
-        kpiCards[5].querySelector('.metric-value').innerText = tVentas;
-        kpiCards[5].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
+        kpiCards[6].querySelector('.metric-value').innerText = tVentas;
+        kpiCards[6].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
     }
 
-    // B. Barras Top (Ads y Citas)
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
     const progCitas = metas.citas > 0 ? (tCitas / metas.citas) * 100 : 0;
-
     const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
     if(topCards.length >= 2) {
         topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${metas.ads.toLocaleString('en-US')}`;
         topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progAds, 100)}%`;
-        
         topCards[1].querySelector('.metric-value').innerText = `${tCitas} / ${metas.citas}`;
         topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
     }
 
-    // ==========================================
-    // C. PAGOS REACTIVOS
-    // ==========================================
     const paymentContainer = document.getElementById('payment-distribution-container');
     if (paymentContainer) {
         paymentContainer.innerHTML = ''; 
-
         if (tVentas === 0) {
             paymentContainer.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 20px;">No hay ventas registradas.</div>`;
         } else {
             const metodosAgrupados = {};
-
             ventas.forEach(v => {
                 let metodoRaw = (v['Deposito'] || '').trim();
                 let mLower = metodoRaw.toLowerCase();
@@ -239,15 +205,9 @@ function renderizarVistaGeneral(dataFiltrada) {
             Object.keys(metodosAgrupados).sort().forEach(metodo => {
                 const listaVentas = metodosAgrupados[metodo];
                 const porcentaje = ((listaVentas.length / tVentas) * 100).toFixed(1);
-
                 const card = document.createElement('div');
                 card.className = 'kpi-card clickable-card';
-                card.innerHTML = `
-                    <div class="metric-title">${metodo}</div>
-                    <div class="metric-value text-success">${listaVentas.length}</div>
-                    <div class="metric-subtitle">${porcentaje}% del total</div>
-                `;
-
+                card.innerHTML = `<div class="metric-title">${metodo}</div><div class="metric-value text-success">${listaVentas.length}</div><div class="metric-subtitle">${porcentaje}% del total</div>`;
                 card.addEventListener('click', () => abrirModalPagos(metodo, listaVentas));
                 paymentContainer.appendChild(card);
             });
@@ -255,7 +215,6 @@ function renderizarVistaGeneral(dataFiltrada) {
     }
 }
 
-// Modal de Detalles 
 function abrirModalPagos(metodo, listaVentas) {
     document.getElementById('payment-modal-title').innerText = metodo;
     const tbody = document.querySelector('#payment-details-table tbody');
