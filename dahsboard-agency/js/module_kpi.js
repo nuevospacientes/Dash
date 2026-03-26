@@ -73,7 +73,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     // CORRECCIÓN EXACTA a =COUNTUNIQUE() usando la columna "Numero"
     const leadsContactadosSet = new Set();
     dataFiltrada.contactados.forEach(c => {
-        let numeroUnico = String(c['Numero'] || '').trim();
+        let numeroUnico = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
         // Solo añadimos si el número no está vacío
         if (numeroUnico !== '') leadsContactadosSet.add(numeroUnico);
     });
@@ -102,7 +102,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     const globalOffset = getTzOffsetMins(globalTz);
 
     dataFiltrada.contactados.forEach(c => {
-        let id = String(c['Numero'] || '').trim(); // Usamos Número como acordamos antes
+        let id = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim(); 
         if (id === '') return;
 
         let cacheKey = '_stl_' + globalTz;
