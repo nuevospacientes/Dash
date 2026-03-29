@@ -101,18 +101,21 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
         if (str.includes('/')) {
             const p = str.split('/');
             if (p.length >= 3) finalTime = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
-        } else if (str.includes('-') && str.split('-').length === 2) {
+        } else if (str.includes('-')) {
             const p = str.split('-');
-            let year = new Date().getFullYear(); 
-            if (row && row['Cita Programada en']) {
-                let strProg = String(row['Cita Programada en']).trim().toLowerCase();
-                if (strProg.includes(' de ')) { let pProg = strProg.split(' de '); if (pProg.length === 3) year = parseInt(pProg[2]); } 
-                else if (strProg.includes('/')) { let pProg = strProg.split('/'); if (pProg.length >= 3) year = parseInt(pProg[2]); }
-            } else {
+            if (p.length === 2) {
+                // Caso "28-mar"
+                let year = new Date().getFullYear(); 
                 let tempDate = new Date(year, meses[p[1]], parseInt(p[0]));
-                if (tempDate > new Date()) year--;
+                if (colName === 'Cita Programada en') {
+                    // Si la cita programada es para un mes anterior y ya pasó, asumimos que es del próximo año
+                    // (Ej. Estamos en nov y agenda para ene -> es ene del siguiente año)
+                    if (tempDate < new Date() && tempDate.getMonth() < new Date().getMonth()) year++;
+                } else {
+                    if (tempDate > new Date()) year--;
+                }
+                finalTime = new Date(year, meses[p[1]], parseInt(p[0])).getTime();
             }
-            finalTime = new Date(year, meses[p[1]], parseInt(p[0])).getTime();
         } else {
             const fb = new Date(str).getTime();
             finalTime = isNaN(fb) ? null : fb;
