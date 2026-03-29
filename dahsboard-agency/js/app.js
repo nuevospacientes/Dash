@@ -42,9 +42,11 @@ async function loadAllData() {
     if(welcome) welcome.innerText = "Descargando bases de datos...";
     
     try {
-        const [ leadsGenerados, leadsContactados, llamadasConectadas, citasGeneradas, shows, noShows, cancelaCita, leadsAntiguos, metaAds ] = await Promise.all([
+        // AÑADIDO: Agregamos showsNt al bloque de descargas
+        const [ leadsGenerados, leadsContactados, llamadasConectadas, citasGeneradas, shows, noShows, cancelaCita, leadsAntiguos, metaAds, showsNt ] = await Promise.all([
             fetchCSV(DB_URLS.leadsGenerados), fetchCSV(DB_URLS.leadsContactados), fetchCSV(DB_URLS.llamadasConectadas), fetchCSV(DB_URLS.citasGeneradas),
-            fetchCSV(DB_URLS.shows), fetchCSV(DB_URLS.noShows), fetchCSV(DB_URLS.cancelaCita), fetchCSV(DB_URLS.leadsAntiguos), fetchCSV(DB_URLS.metaAds)
+            fetchCSV(DB_URLS.shows), fetchCSV(DB_URLS.noShows), fetchCSV(DB_URLS.cancelaCita), fetchCSV(DB_URLS.leadsAntiguos), fetchCSV(DB_URLS.metaAds),
+            fetchCSV(DB_URLS.showsNt) // <--- NUEVO
         ]);
 
         const leadsAntiguosFormateados = (leadsAntiguos || []).map(row => {
@@ -66,6 +68,7 @@ async function loadAllData() {
             llamadas: llamadasConectadas, 
             citas: citasGeneradas, 
             shows: shows, 
+            showsNt: showsNt || [], // <--- NUEVA HOJA AÑADIDA AL CEREBRO
             noShows: noShows, 
             cancelados: cancelaCita, 
             ads: metaAds 
@@ -78,7 +81,7 @@ async function loadAllData() {
 
     } catch (error) {
         console.error(error);
-        mostrarErrorSistema("Hubo un error al descargar la información.", "loadAllData()", "Asegúrate de que la URL termine en 'output=csv'.");
+        mostrarErrorSistema("Hubo un error al descargar la información.", "loadAllData()", "Asegúrate de que la URL termine en 'output=csv' y exista en config.js.");
     }
 }
 
@@ -261,19 +264,24 @@ function procesarYRenderizar() {
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
         
-        // Hoja 2 (Intentos de llamada) -> Le damos un "fallback" a la fecha para que no elimine filas de intentos extra
         contactados: window.AppData.raw.contactados.filter(r => {
             let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
             return cumpleFiltro(r, 'Campaña', null, colDate);
         }), 
         
-        // Hoja 3 (Llamadas Conectadas) -> Filtramos por "Fecha last call" o si falta, "Fecha Lead entra"
         llamadas: window.AppData.raw.llamadas.filter(r => {
             let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
             return cumpleFiltro(r, 'Campaña', null, col);
         }),
+        
+        // Mantenemos 'citas' para no romper gráficos antiguos, y agregamos las separadas
         citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
+        citasGeneradas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
+        citasCalendario: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita Programada en')),
+        
         shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        showsNt: window.AppData.raw.showsNt ? window.AppData.raw.showsNt.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')) : [],
+        
         noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
