@@ -61,6 +61,7 @@ async function loadAllData() {
             };
         });
 
+        // 1. CARGAMOS LA DATA CRUDA EN LA MEMORIA RAM
         window.AppData.raw = {
             leads: [...(leadsGenerados || []), ...leadsAntiguosFormateados], 
             contactados: leadsContactados, 
@@ -73,6 +74,10 @@ async function loadAllData() {
             ads: metaAds 
         };
         
+        // 2. EJECUTAMOS EL SCRAPPER PESADO (UNA SOLA VEZ)
+        procesarBasesDeDatosMaestras();
+
+        // 3. RENDERIZAMOS LA VISTA (Milisegundos)
         procesarYRenderizar();
 
         const session = JSON.parse(localStorage.getItem('np_session'));
@@ -84,8 +89,71 @@ async function loadAllData() {
     }
 }
 
+// =========================================================================
+// FUNCIÓN PESADA: SE EJECUTA SOLO 1 VEZ AL RECARGAR LA PÁGINA O DAR REFRESH
+// =========================================================================
+function procesarBasesDeDatosMaestras() {
+    const cleanPhone = (str) => String(str || '').replace(/[^0-9]/g, '');
+    const cleanEmail = (str) => String(str || '').toLowerCase().trim();
+    const normalizeStr = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
+
+    const officialNames = { camp: {}, op: {} };
+    const getOfficialName = (type, rawVal, defaultVal) => {
+        if (!rawVal || String(rawVal).trim() === '') return defaultVal;
+        let norm = normalizeStr(rawVal);
+        if (!officialNames[type][norm]) officialNames[type][norm] = String(rawVal).trim();
+        return officialNames[type][norm]; 
+    };
+
+    const masterCamp = { byPhone: {}, byEmail: {}, byName: {} };
+    const masterOp = { byPhone: {}, byEmail: {}, byName: {} };
+    const sheets = ['leads', 'contactados', 'llamadas', 'citas', 'shows', 'showsNt', 'noShows', 'cancelados'];
+
+    // FASE 1: Aprender de todas las hojas simultáneamente
+    sheets.forEach(sheetName => {
+        if (!window.AppData.raw[sheetName]) return;
+        window.AppData.raw[sheetName].forEach(row => {
+            let camp = getOfficialName('camp', row['Campaña'], null);
+            let op = getOfficialName('op', row['Operador'], null);
+            
+            let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
+            let e = cleanEmail(row['Email'] || row['Email ']);
+            let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
+
+            if (camp) {
+                if (p) masterCamp.byPhone[p] = camp;
+                if (e) masterCamp.byEmail[e] = camp;
+                if (n && n.length > 3) masterCamp.byName[n] = camp;
+            }
+            if (op && op !== 'Sin Asignar') {
+                if (p && !masterOp.byPhone[p]) masterOp.byPhone[p] = op;
+                if (e && !masterOp.byEmail[e]) masterOp.byEmail[e] = op;
+                if (n && n.length > 3 && !masterOp.byName[n]) masterOp.byName[n] = op;
+            }
+        });
+    });
+
+    // FASE 2: Reparar y curar la memoria RAM de todas las hojas
+    sheets.forEach(sheetName => {
+        if (!window.AppData.raw[sheetName]) return;
+        window.AppData.raw[sheetName].forEach(row => {
+            let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
+            let e = cleanEmail(row['Email'] || row['Email ']);
+            let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
+
+            let baseCamp = getOfficialName('camp', row['Campaña'], null);
+            row['Campaña'] = masterCamp.byPhone[p] || masterCamp.byEmail[e] || masterCamp.byName[n] || baseCamp || 'Desconocida';
+            
+            let baseOp = getOfficialName('op', row['Operador'], null);
+            row['Operador'] = masterOp.byPhone[p] || masterOp.byEmail[e] || masterOp.byName[n] || baseOp || 'Sin Asignar';
+        });
+    });
+}
+// =========================================================================
+
 function parseDateSpanish(dateStr, row = null, colName = null) {
     if (!dateStr) return null;
+    // MAGIA DE RENDIMIENTO: Si ya calculamos esta fecha, la sacamos de la caché en milisegundos.
     if (row && colName && row[`_ts_${colName}`] !== undefined) { return row[`_ts_${colName}`]; }
 
     let str = String(dateStr).trim().toLowerCase();
@@ -185,73 +253,14 @@ function getRangoFechas() {
     return { start, end };
 }
 
+// =========================================================================
+// FUNCIÓN LIGERA: SE EJECUTA RÁPIDO CADA VEZ QUE CAMBIAS UN FILTRO
+// =========================================================================
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
 
-    // --- SCRAPPER PROFUNDO: NORMALIZACIÓN EXTREMA ---
-    const cleanPhone = (str) => String(str || '').replace(/[^0-9]/g, '');
-    const cleanEmail = (str) => String(str || '').toLowerCase().trim();
-    // Normaliza eliminando tildes, pasando a minúscula y quitando espacios extra
-    const normalizeStr = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
-
-    // Diccionario para mantener los nombres "Oficiales" y bonitos de campaña y operador
-    const officialNames = { camp: {}, op: {} };
-    const getOfficialName = (type, rawVal, defaultVal) => {
-        if (!rawVal || String(rawVal).trim() === '') return defaultVal;
-        let norm = normalizeStr(rawVal);
-        if (!officialNames[type][norm]) officialNames[type][norm] = String(rawVal).trim();
-        return officialNames[type][norm]; // Retorna siempre la versión oficial con sus mayúsculas
-    };
-
-    const masterCamp = { byPhone: {}, byEmail: {}, byName: {} };
-    const masterOp = { byPhone: {}, byEmail: {}, byName: {} };
-    const sheets = ['leads', 'contactados', 'llamadas', 'citas', 'shows', 'showsNt', 'noShows', 'cancelados'];
-
-    // 1. APRENDER de todas las hojas simultáneamente para cruzar la data rota
-    sheets.forEach(sheetName => {
-        if (!window.AppData.raw[sheetName]) return;
-        window.AppData.raw[sheetName].forEach(row => {
-            let camp = getOfficialName('camp', row['Campaña'], null);
-            let op = getOfficialName('op', row['Operador'], null);
-            
-            let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
-            let e = cleanEmail(row['Email'] || row['Email ']);
-            let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
-
-            if (camp) {
-                if (p) masterCamp.byPhone[p] = camp;
-                if (e) masterCamp.byEmail[e] = camp;
-                if (n && n.length > 3) masterCamp.byName[n] = camp;
-            }
-            if (op && op !== 'Sin Asignar') {
-                if (p && !masterOp.byPhone[p]) masterOp.byPhone[p] = op;
-                if (e && !masterOp.byEmail[e]) masterOp.byEmail[e] = op;
-                if (n && n.length > 3 && !masterOp.byName[n]) masterOp.byName[n] = op;
-            }
-        });
-    });
-
-    // 2. REPARAR (ATRIBUIR) la data en todas las hojas
-    sheets.forEach(sheetName => {
-        if (!window.AppData.raw[sheetName]) return;
-        window.AppData.raw[sheetName].forEach(row => {
-            let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
-            let e = cleanEmail(row['Email'] || row['Email ']);
-            let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
-
-            let baseCamp = getOfficialName('camp', row['Campaña'], null);
-            row['Campaña'] = masterCamp.byPhone[p] || masterCamp.byEmail[e] || masterCamp.byName[n] || baseCamp || 'Desconocida';
-            
-            let baseOp = getOfficialName('op', row['Operador'], null);
-            row['Operador'] = masterOp.byPhone[p] || masterOp.byEmail[e] || masterOp.byName[n] || baseOp || 'Sin Asignar';
-        });
-    });
-    // --- FIN DEL SCRAPPER PROFUNDO ---
-
-    // --- FILTRADO INTELIGENTE (Soluciona el cuello de botella de campañas desaparecidas) ---
     const { start, end } = getRangoFechas();
 
-    // Función validación de fecha base
     const isDateValid = (row, colFecha) => {
         if (start === null || end === null) return true;
         if (!row[colFecha] || String(row[colFecha]).trim() === '') return false;
@@ -263,7 +272,7 @@ function procesarYRenderizar() {
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
 
-    // Rastrear qué campañas están activas HOY cruzando TODAS las hojas (No solo Leads)
+    // Rastrear qué campañas están activas HOY cruzando TODAS las hojas
     window.AppData.raw.leads.forEach(r => { if(isDateValid(r, 'Fecha entrada lead')) campañasDisponibles.add(r['Campaña']); });
     
     if(window.AppData.raw.contactados) {
@@ -289,7 +298,6 @@ function procesarYRenderizar() {
 
     window.AppData.raw.shows.forEach(r => { if(isDateValid(r, 'Fecha Visita')) campañasDisponibles.add(r['Campaña']); });
 
-    // Armado del Dropdown
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
     const prevCamp = campFilter.value; const prevOp = opFilter.value;
@@ -309,7 +317,6 @@ function procesarYRenderizar() {
     const finalCampaignSelected = campFilter.value;
     const finalOperatorSelected = opFilter.value;
 
-    // Filtro Definitivo
     const cumpleFiltroFinal = (row, colDate, isOpRelevant = false) => {
         if (finalCampaignSelected !== 'all' && row['Campaña'] !== finalCampaignSelected) return false;
         if (isOpRelevant && finalOperatorSelected !== 'all' && row['Operador'] !== finalOperatorSelected) return false;
@@ -317,7 +324,11 @@ function procesarYRenderizar() {
     };
 
     const cumpleFiltroAds = (row) => {
-        if (finalCampaignSelected !== 'all' && getOfficialName('camp', row['Campaign name'], null) !== finalCampaignSelected) return false;
+        const normalizeStr = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
+        let nameAd = normalizeStr(row['Campaign name']);
+        let nameFil = normalizeStr(finalCampaignSelected);
+        
+        if (finalCampaignSelected !== 'all' && nameAd !== nameFil) return false;
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
