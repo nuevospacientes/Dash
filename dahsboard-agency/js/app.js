@@ -101,21 +101,67 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
         if (str.includes('/')) {
             const p = str.split('/');
             if (p.length >= 3) finalTime = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0])).getTime();
-        } else if (str.includes('-')) {
+        } else if (str.includes('-') && str.split('-').length === 2) {
             const p = str.split('-');
-            if (p.length === 2) {
-                // Caso "28-mar"
-                let year = new Date().getFullYear(); 
-                let tempDate = new Date(year, meses[p[1]], parseInt(p[0]));
-                if (colName === 'Cita Programada en') {
-                    // Si la cita programada es para un mes anterior y ya pasó, asumimos que es del próximo año
-                    // (Ej. Estamos en nov y agenda para ene -> es ene del siguiente año)
-                    if (tempDate < new Date() && tempDate.getMonth() < new Date().getMonth()) year++;
-                } else {
-                    if (tempDate > new Date()) year--;
+            let year = new Date().getFullYear(); 
+            let month = meses[p[1]];
+            let day = parseInt(p[0]);
+
+            // --- LÓGICA DE VIAJE EN EL TIEMPO Y TRIANGULACIÓN DE AÑO ---
+            if (row) {
+                let referenceYear = null;
+
+                // 1. Intentar buscar el año en la columna "Cita Programada en" (A la derecha)
+                if (row['Cita Programada en']) {
+                    let cProg = String(row['Cita Programada en']).trim().toLowerCase();
+                    if (cProg.includes(' de ')) {
+                        let parts = cProg.split(' de ');
+                        if (parts.length === 3) referenceYear = parseInt(parts[2]);
+                    } else if (cProg.includes('/')) {
+                        let parts = cProg.split('/');
+                        if (parts.length >= 3) referenceYear = parseInt(parts[2]);
+                    }
                 }
-                finalTime = new Date(year, meses[p[1]], parseInt(p[0])).getTime();
+
+                // 2. Si no lo encontramos ahí, buscar en "Fecha Lead entra" o "Fecha entrada lead" (Hojas Anteriores)
+                if (!referenceYear) {
+                    let cLead = String(row['Fecha Lead entra'] || row['Fecha entrada lead'] || '').trim().toLowerCase();
+                    if (cLead) {
+                        if (cLead.includes(' de ')) {
+                            let parts = cLead.split(' de ');
+                            if (parts.length === 3) referenceYear = parseInt(parts[2]);
+                        } else if (cLead.includes('/')) {
+                            let parts = cLead.split('/');
+                            if (parts.length >= 3) referenceYear = parseInt(parts[2]);
+                        }
+                    }
+                }
+
+                // 3. Aplicar el año encontrado o usar lógica de sentido común
+                if (referenceYear) {
+                    year = referenceYear;
+                    
+                    // Si encontramos el año de entrada del lead, pero el mes de la cita es menor,
+                    // y estamos cerca de fin de año, asumimos que es el año siguiente.
+                    // Ej: Entró en Nov 2025, agenda para Feb (asumimos Feb 2026)
+                    let currentMonth = new Date().getMonth();
+                    if (month < currentMonth && currentMonth >= 9) { 
+                        year++;
+                    }
+                } else {
+                    // Fallback (Si de verdad no hay ninguna fecha completa en toda la fila)
+                    let tempDate = new Date(year, month, day);
+                    if (colName === 'Cita Programada en' || colName === 'Cita generada') {
+                        let currentMonth = new Date().getMonth();
+                        if (currentMonth === 11 && month === 0) year++;
+                        else if (currentMonth === 0 && month === 11) year--;
+                    } else {
+                        if (tempDate > new Date()) year--;
+                    }
+                }
             }
+
+            finalTime = new Date(year, month, day).getTime();
         } else {
             const fb = new Date(str).getTime();
             finalTime = isNaN(fb) ? null : fb;
