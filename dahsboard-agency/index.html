@@ -126,30 +126,6 @@
                     <button id="save-settings" class="btn-primary w-full">Guardar y Aplicar Cambios</button>
                 </div>
             </div>
-
-            <div id="modal-tracker-settings" class="modal-overlay" style="display: none; z-index: 10000;">
-                <div class="modal-content" style="border-top: 4px solid #bc13fe;">
-                    <div class="modal-header">
-                        <h2><i class="fa-solid fa-stopwatch"></i> Umbrales de Llamada</h2>
-                        <button onclick="document.getElementById('modal-tracker-settings').style.display='none'" class="close-btn">&times;</button>
-                    </div>
-                    <p class="modal-desc" style="margin-bottom: 15px;">Define cuántos segundos debe durar una llamada para considerarse en cada etapa.</p>
-                    
-                    <div class="input-group">
-                        <label>Pick Up Rate (Segundos mínimos)</label>
-                        <input type="number" id="track-sec-pickup" value="5">
-                    </div>
-                    <div class="input-group">
-                        <label>Connection Rate (Segundos mínimos)</label>
-                        <input type="number" id="track-sec-conn" value="15">
-                    </div>
-                    <div class="input-group">
-                        <label>Conversación Efectiva (Segundos mínimos)</label>
-                        <input type="number" id="track-sec-eff" value="60">
-                    </div>
-                    <button onclick="guardarTrackerSettings()" class="btn-primary w-full" style="background: #bc13fe;">Guardar y Recalcular</button>
-                </div>
-            </div>
             
             <div id="modal-error" class="modal-overlay" style="display: none; z-index: 10000;">
                 <div class="modal-content" style="border-color: var(--accent-danger);">
@@ -195,6 +171,30 @@
                                 </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <div id="modal-tracker-settings" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-top: 4px solid #bc13fe;">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-stopwatch"></i> Umbrales de Llamada</h2>
+                        <button onclick="document.getElementById('modal-tracker-settings').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <p class="modal-desc" style="margin-bottom: 15px;">Define cuántos segundos debe durar una llamada para considerarse en cada etapa.</p>
+                    
+                    <div class="input-group">
+                        <label>Pick Up Rate (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-pickup" value="5">
+                    </div>
+                    <div class="input-group">
+                        <label>Connection Rate (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-conn" value="15">
+                    </div>
+                    <div class="input-group">
+                        <label>Conversación Efectiva (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-eff" value="60">
+                    </div>
+                    <button onclick="guardarTrackerSettings()" class="btn-primary w-full" style="background: #bc13fe;">Guardar y Recalcular</button>
                 </div>
             </div>
             
