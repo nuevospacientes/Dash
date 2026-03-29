@@ -10,6 +10,31 @@ window.trackerSortState = window.trackerSortState || {
 
 const TICKET_PROMEDIO_TRACKER = 500;
 
+// --- GESTIÓN DE CONFIGURACIÓN DINÁMICA ---
+const getTrackerSettings = () => {
+    return JSON.parse(localStorage.getItem('np_tracker_sec')) || { pickup: 5, conn: 15, eff: 60 };
+};
+
+window.abrirModalTracker = function() {
+    const s = getTrackerSettings();
+    document.getElementById('track-sec-pickup').value = s.pickup;
+    document.getElementById('track-sec-conn').value = s.conn;
+    document.getElementById('track-sec-eff').value = s.eff;
+    document.getElementById('modal-tracker-settings').style.display = 'flex';
+};
+
+window.guardarTrackerSettings = function() {
+    const pickup = parseInt(document.getElementById('track-sec-pickup').value) || 5;
+    const conn = parseInt(document.getElementById('track-sec-conn').value) || 15;
+    const eff = parseInt(document.getElementById('track-sec-eff').value) || 60;
+    
+    localStorage.setItem('np_tracker_sec', JSON.stringify({ pickup, conn, eff }));
+    document.getElementById('modal-tracker-settings').style.display = 'none';
+    
+    if (typeof procesarYRenderizar === 'function') procesarYRenderizar();
+};
+// -----------------------------------------
+
 function renderizarCallTracker(dataFiltrada) {
     const llamadas = dataFiltrada.llamadas || []; // Conectadas (~50)
     const contactados = dataFiltrada.contactados || []; // Emitidas (~484)
@@ -25,16 +50,19 @@ function renderizarCallTracker(dataFiltrada) {
         if (num !== '' && op !== '') numeroAOperador[num] = op;
     });
 
-    // 2. KPIs SUPERIORES (Calidad de Llamadas)
-    // El total de llamadas emitidas es el total de filas crudas en Contactados (Hoja 2)
-    let totalLlamadasEmitidas = dataFiltrada.contactados.length;
+    // 2. KPIs SUPERIORES (Calidad de Llamadas) DINÁMICOS
+    let settings = getTrackerSettings();
+    let totalLlamadasEmitidas = contactados.length;
     
     let pickUpCount = 0, connectionCount = 0, effectiveCount = 0;
     llamadas.forEach(ll => {
-        let duracion = parseFloat(ll['Duracion Lllamda']) || 0;
-        if (duracion > 5) pickUpCount++;
-        if (duracion > 15) connectionCount++;
-        if (duracion > 60) effectiveCount++;
+        // Extraemos solo el número, por si el Excel dice "60 seg" en vez de "60"
+        let rawVal = String(ll['Duracion Llamada'] || ll['Duracion Lllamda'] || ll['Duración'] || '0');
+        let duracion = parseFloat(rawVal.replace(/[^0-9.]/g, '')) || 0;
+        
+        if (duracion >= settings.pickup) pickUpCount++;
+        if (duracion >= settings.conn) connectionCount++;
+        if (duracion >= settings.eff) effectiveCount++;
     });
 
     const kpiCards = document.querySelectorAll('#view-tracker .grid-cards .kpi-card');
@@ -50,6 +78,16 @@ function renderizarCallTracker(dataFiltrada) {
         kpiCards[2].querySelector('.metric-value').innerText = pConn.toFixed(1) + '%';
         kpiCards[3].querySelector('.metric-value').innerText = pEff.toFixed(1) + '%';
         kpiCards[4].querySelector('.metric-value').innerText = totalLlamadasEmitidas;
+
+        // Actualizamos los subtítulos visuales
+        const lPick = document.getElementById('track-lbl-pickup'); if(lPick) lPick.innerText = `Mínimo ${settings.pickup} seg`;
+        const lConn = document.getElementById('track-lbl-conn'); if(lConn) lConn.innerText = `Mínimo ${settings.conn} seg`;
+        const lEff = document.getElementById('track-lbl-eff'); if(lEff) lEff.innerText = `Mínimo ${settings.eff} seg`;
+
+        // Actualizamos el texto de los Tooltips
+        const ttPick = document.getElementById('track-tt-pickup'); if(ttPick) ttPick.innerText = `Porcentaje de llamadas emitidas que fueron contestadas por el prospecto y duraron más de ${settings.pickup} segundos.`;
+        const ttConn = document.getElementById('track-tt-conn'); if(ttConn) ttConn.innerText = `Porcentaje de llamadas donde se logró retener al prospecto en línea por más de ${settings.conn} segundos.`;
+        const ttEff = document.getElementById('track-tt-eff'); if(ttEff) ttEff.innerText = `Porcentaje de llamadas que se convirtieron en una conversación real, superando la barrera de los ${settings.eff} segundos.`;
     }
 
     const statsOp = {};
@@ -66,7 +104,7 @@ function renderizarCallTracker(dataFiltrada) {
     };
 
     ads.forEach(ad => {
-        let c = (ad['Campaign name'] || 'Desconocida').trim(); initCamp(c);
+        let c = (ad['OfficialCampaign'] || ad['Campaign name'] || 'Desconocida').trim(); initCamp(c);
         let spent = parseFloat(String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "")) || 0;
         let clk = parseInt(ad['Clicks (all)'] || 0) || 0;
         statsCamp[c].inv += spent; statsCamp[c].clicks += clk; totalClicks += clk;
@@ -93,7 +131,6 @@ function renderizarCallTracker(dataFiltrada) {
         
         if (num !== '') {
             let bMins = c['_stl_' + globalTz]; // Tomamos el valor de la memoria
-            // Solo sumamos al ranking a los leads que sí fueron contactados en horario laboral (diferente de null)
             if (bMins !== undefined && bMins !== null) {
                 if (statsCamp[camp].stlMap[num] === undefined || bMins < statsCamp[camp].stlMap[num]) statsCamp[camp].stlMap[num] = bMins;
                 if (op !== 'Sin Asignar') {
