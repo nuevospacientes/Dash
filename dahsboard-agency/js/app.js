@@ -42,11 +42,10 @@ async function loadAllData() {
     if(welcome) welcome.innerText = "Descargando bases de datos...";
     
     try {
-        // AÑADIDO: Agregamos showsNt al bloque de descargas
         const [ leadsGenerados, leadsContactados, llamadasConectadas, citasGeneradas, shows, noShows, cancelaCita, leadsAntiguos, metaAds, showsNt ] = await Promise.all([
             fetchCSV(DB_URLS.leadsGenerados), fetchCSV(DB_URLS.leadsContactados), fetchCSV(DB_URLS.llamadasConectadas), fetchCSV(DB_URLS.citasGeneradas),
             fetchCSV(DB_URLS.shows), fetchCSV(DB_URLS.noShows), fetchCSV(DB_URLS.cancelaCita), fetchCSV(DB_URLS.leadsAntiguos), fetchCSV(DB_URLS.metaAds),
-            fetchCSV(DB_URLS.showsNt) // <--- NUEVO
+            fetchCSV(DB_URLS.showsNt)
         ]);
 
         const leadsAntiguosFormateados = (leadsAntiguos || []).map(row => {
@@ -68,7 +67,7 @@ async function loadAllData() {
             llamadas: llamadasConectadas, 
             citas: citasGeneradas, 
             shows: shows, 
-            showsNt: showsNt || [], // <--- NUEVA HOJA AÑADIDA AL CEREBRO
+            showsNt: showsNt || [], 
             noShows: noShows, 
             cancelados: cancelaCita, 
             ads: metaAds 
@@ -107,11 +106,9 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
             let month = meses[p[1]];
             let day = parseInt(p[0]);
 
-            // --- LÓGICA DE VIAJE EN EL TIEMPO Y TRIANGULACIÓN DE AÑO ---
             if (row) {
                 let referenceYear = null;
 
-                // 1. Intentar buscar el año en la columna "Cita Programada en" (A la derecha)
                 if (row['Cita Programada en']) {
                     let cProg = String(row['Cita Programada en']).trim().toLowerCase();
                     if (cProg.includes(' de ')) {
@@ -123,7 +120,6 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
                     }
                 }
 
-                // 2. Si no lo encontramos ahí, buscar en "Fecha Lead entra" o "Fecha entrada lead" (Hojas Anteriores)
                 if (!referenceYear) {
                     let cLead = String(row['Fecha Lead entra'] || row['Fecha entrada lead'] || '').trim().toLowerCase();
                     if (cLead) {
@@ -137,19 +133,13 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
                     }
                 }
 
-                // 3. Aplicar el año encontrado o usar lógica de sentido común
                 if (referenceYear) {
                     year = referenceYear;
-                    
-                    // Si encontramos el año de entrada del lead, pero el mes de la cita es menor,
-                    // y estamos cerca de fin de año, asumimos que es el año siguiente.
-                    // Ej: Entró en Nov 2025, agenda para Feb (asumimos Feb 2026)
                     let currentMonth = new Date().getMonth();
                     if (month < currentMonth && currentMonth >= 9) { 
                         year++;
                     }
                 } else {
-                    // Fallback (Si de verdad no hay ninguna fecha completa en toda la fila)
                     let tempDate = new Date(year, month, day);
                     if (colName === 'Cita Programada en' || colName === 'Cita generada') {
                         let currentMonth = new Date().getMonth();
@@ -198,46 +188,59 @@ function getRangoFechas() {
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
 
-    // --- NUEVO CEREBRO DE ATRIBUCIÓN MAESTRA ---
-    // 1. Mapeamos el teléfono de cada Lead con su Campaña exacta (La fuente de la verdad)
-    const numeroACampana = {};
-    window.AppData.raw.leads.forEach(l => {
-        let num = String(l['Numero'] || l['Teléfono'] || l['Telefono'] || l['Phone'] || l['Número'] || '').trim();
-        let camp = String(l['Campaña'] || '').trim();
-        if (num !== '' && camp !== '') numeroACampana[num] = camp;
+    const cleanPhone = (str) => String(str || '').replace(/[^0-9]/g, '');
+    const cleanEmail = (str) => String(str || '').toLowerCase().trim();
+    const cleanName = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
+    const cleanCamp = (str) => String(str || '').trim();
+
+    const masterCamp = { byPhone: {}, byEmail: {}, byName: {} };
+    const masterOp = { byPhone: {}, byEmail: {}, byName: {} };
+
+    window.AppData.raw.leads.forEach(r => {
+        let camp = cleanCamp(r['Campaña']);
+        if (!camp) return;
+        
+        let p = cleanPhone(r['Numero'] || r['Teléfono'] || r['Telefono'] || r['Phone'] || r['Número']);
+        let e = cleanEmail(r['Email'] || r['Email ']);
+        let n = cleanName(r['Nombre'] || r['First Name'] || r['Lead Name']);
+
+        if (p) masterCamp.byPhone[p] = camp;
+        if (e) masterCamp.byEmail[e] = camp;
+        if (n && n.length > 3) masterCamp.byName[n] = camp;
     });
 
-    // 2. Mapeamos el teléfono con el Operador (desde Citas)
-    const numeroAOperador = {};
-    window.AppData.raw.citas.forEach(c => {
-        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-        let op = String(c['Operador'] || '').trim();
-        if (num !== '' && op !== '') numeroAOperador[num] = op;
-    });
+    const feedOperators = (sheet) => {
+        if(!sheet) return;
+        sheet.forEach(r => {
+            let op = cleanCamp(r['Operador']);
+            if (!op || op === 'Sin Asignar') return;
+            
+            let p = cleanPhone(r['Numero'] || r['Teléfono'] || r['Telefono'] || r['Phone'] || r['Número']);
+            let e = cleanEmail(r['Email'] || r['Email ']);
+            let n = cleanName(r['Nombre'] || r['First Name'] || r['Lead Name']);
 
-    // 3. Unificamos todas las hojas inyectando la Campaña y Operador correctos usando el Teléfono
-    ['contactados', 'llamadas', 'citas', 'shows', 'noShows', 'cancelados'].forEach(sheet => {
-        if(window.AppData.raw[sheet]) {
-            window.AppData.raw[sheet].forEach(row => {
-                let num = String(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número'] || '').trim();
-                
-                // ATRIBUCIÓN DE CAMPAÑA: Forzamos la campaña del Lead original para que el filtro nunca falle
-                if (numeroACampana[num]) {
-                    row['Campaña'] = numeroACampana[num];
-                } else if (!row['Campaña'] || String(row['Campaña']).trim() === '') {
-                    row['Campaña'] = 'Desconocida';
-                }
-                
-                // ATRIBUCIÓN DE OPERADOR
-                if (!row['Operador'] || String(row['Operador']).trim() === '') {
-                    row['Operador'] = numeroAOperador[num] || 'Sin Asignar';
-                }
+            if (p && !masterOp.byPhone[p]) masterOp.byPhone[p] = op;
+            if (e && !masterOp.byEmail[e]) masterOp.byEmail[e] = op;
+            if (n && n.length > 3 && !masterOp.byName[n]) masterOp.byName[n] = op;
+        });
+    };
+    feedOperators(window.AppData.raw.citas);
+    feedOperators(window.AppData.raw.contactados);
+
+    ['leads', 'contactados', 'llamadas', 'citas', 'shows', 'showsNt', 'noShows', 'cancelados'].forEach(sheetName => {
+        if(window.AppData.raw[sheetName]) {
+            window.AppData.raw[sheetName].forEach(row => {
+                let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
+                let e = cleanEmail(row['Email'] || row['Email ']);
+                let n = cleanName(row['Nombre'] || row['First Name'] || row['Lead Name']);
+
+                row['Campaña'] = masterCamp.byPhone[p] || masterCamp.byEmail[e] || masterCamp.byName[n] || cleanCamp(row['Campaña']) || 'Desconocida';
+                row['Operador'] = masterOp.byPhone[p] || masterOp.byEmail[e] || masterOp.byName[n] || cleanCamp(row['Operador']) || 'Sin Asignar';
             });
         }
     });
 
     const { start, end } = getRangoFechas();
-    
     
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
@@ -264,7 +267,6 @@ function procesarYRenderizar() {
     const opFilter = document.getElementById('global-operator-filter');
     const prevCamp = campFilter.value; const prevOp = opFilter.value;
 
-    // Armamos todo primero en texto para no ahogar al navegador inyectando uno por uno
     let campHTML = '<option value="all" selected>Todas las Campañas</option>';
     let opHTML = '<option value="all" selected>Todos los Operadores</option>';
 
@@ -281,15 +283,12 @@ function procesarYRenderizar() {
     const finalOperatorSelected = opFilter.value;
 
     const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
-        // 1. Limpiamos espacios extra en Campaña para evitar que se filtren mal
         if (finalCampaignSelected !== 'all' && colCampaña && row[colCampaña] !== undefined) {
             if (String(row[colCampaña]).trim() !== finalCampaignSelected) return false;
         }
-        // 2. Limpiamos espacios extra en Operador
         if (finalOperatorSelected !== 'all' && colOperador && row[colOperador] !== undefined) {
             if (String(row[colOperador]).trim() !== finalOperatorSelected) return false;
         }
-        // 3. Filtro de Fecha
         if (start !== null && end !== null && colFecha) {
             if (!row[colFecha] || String(row[colFecha]).trim() === '') return false;
             const rowTime = parseDateSpanish(row[colFecha], row, colFecha); 
@@ -312,25 +311,19 @@ function procesarYRenderizar() {
 
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
-        
         contactados: window.AppData.raw.contactados.filter(r => {
             let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
             return cumpleFiltro(r, 'Campaña', null, colDate);
         }), 
-        
         llamadas: window.AppData.raw.llamadas.filter(r => {
             let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
             return cumpleFiltro(r, 'Campaña', null, col);
         }),
-        
-        // Mantenemos 'citas' para no romper gráficos antiguos, y agregamos las separadas
         citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
         citasGeneradas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
         citasCalendario: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita Programada en')),
-        
         shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         showsNt: window.AppData.raw.showsNt ? window.AppData.raw.showsNt.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')) : [],
-        
         noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
         ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
@@ -427,7 +420,6 @@ window.ejecutarDetective = function() {
             if (dateStr) {
                 let parsed = typeof parseDateSpanish === 'function' ? parseDateSpanish(dateStr.split(' ')[0], row, 'dummy') : new Date(dateStr.split(' ')[0]).getTime();
                 
-                // Si tiene hora, se la sumamos al timestamp para que el orden sea exacto
                 if (parsed) {
                     timestamp = parsed;
                     let timeMatch = dateStr.match(/\d{1,2}:\d{2}(:\d{2})?/);
@@ -441,7 +433,6 @@ window.ejecutarDetective = function() {
             perfiles[id].events.push({ type, dateStr: dateStr || 'Fecha no registrada', details, badgeColor, icon, timestamp, row });
         };
 
-        // --- CEREBRO PARA CALCULAR LA DURACIÓN DE LA LLAMADA ---
         const calcularDuracion = (horaInicio, horaFin) => {
             if (!horaInicio || !horaFin) return null;
             let t1 = String(horaInicio).trim().split(':');
@@ -453,14 +444,13 @@ window.ejecutarDetective = function() {
             let d2 = new Date(); d2.setHours(parseInt(t2[0]), parseInt(t2[1]), parseInt(t2[2]||0));
             
             let diffMs = d2 - d1;
-            if (diffMs < 0) diffMs += 86400000; // Si la llamada cruzó la medianoche
+            if (diffMs < 0) diffMs += 86400000; 
             
             let diffSecs = Math.floor(diffMs / 1000);
             if (diffSecs < 60) return `${diffSecs} seg`;
             return `${Math.floor(diffSecs / 60)} min ${diffSecs % 60} seg`;
         };
 
-        // 1. ESPIA EN LEADS
         rawData.leads.filter(matchRecord).forEach(r => {
             let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
             let hora = r['Hora Generado'] || r['Hora entrada'] || '';
@@ -468,7 +458,6 @@ window.ejecutarDetective = function() {
             addEvent(id, 'INGRESO LEAD', dateStr, `El lead entró al sistema.`, 'var(--border-color)', 'fa-user-plus', r);
         });
 
-        // 2. ESPIA EN INTENTOS DE LLAMADA (Hoja 2)
         if(rawData.contactados) {
             rawData.contactados.filter(matchRecord).forEach(r => {
                 let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
@@ -481,7 +470,6 @@ window.ejecutarDetective = function() {
             });
         }
 
-        // 3. ESPIA EN LLAMADAS CONECTADAS (Hoja 3)
         if(rawData.llamadas) {
             rawData.llamadas.filter(matchRecord).forEach(r => {
                 let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
@@ -492,7 +480,6 @@ window.ejecutarDetective = function() {
                 
                 let dateStr = horaInicio ? `${fecha} ${horaInicio}` : fecha;
                 
-                // Calculamos la duración usando la nueva función matemática
                 let duracion = calcularDuracion(horaInicio, horaFin);
                 let duracionHtml = duracion ? `<br><span style="color: #bc13fe; font-size: 0.8rem;"><i class="fa-solid fa-clock"></i> Tiempo en línea: <b>${duracion}</b></span>` : '';
 
@@ -500,7 +487,6 @@ window.ejecutarDetective = function() {
             });
         }
 
-        // 4. ESPIA EN CITAS
         if(rawData.citas) {
             rawData.citas.filter(matchRecord).forEach(r => {
                 let id = String(r['Numero'] || r['Teléfono'] || r['Phone'] || r['Nombre']).trim();
@@ -510,7 +496,6 @@ window.ejecutarDetective = function() {
             });
         }
 
-        // 5. ESPIA EN SHOWS Y CANCELACIONES
         const finales = [
             { sheet: 'shows', type: 'SHOW / ASISTENCIA', color: 'var(--accent-success)', icon: 'fa-check-double' },
             { sheet: 'noShows', type: 'NO SHOW (Faltó)', color: 'var(--accent-warning)', icon: 'fa-user-xmark' },
@@ -527,7 +512,6 @@ window.ejecutarDetective = function() {
             }
         });
 
-        // RENDERIZADO VISUAL
         let html = '';
         const keys = Object.keys(perfiles);
 
@@ -538,7 +522,6 @@ window.ejecutarDetective = function() {
 
         keys.forEach(k => {
             let p = perfiles[k];
-            // Ordenamos la línea de tiempo cronológicamente
             p.events.sort((a,b) => a.timestamp - b.timestamp);
 
             let eventsHtml = p.events.map((ev, index) => {
