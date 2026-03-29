@@ -74,10 +74,10 @@ async function loadAllData() {
             ads: metaAds 
         };
         
-        // 2. EJECUTAMOS EL SCRAPPER PESADO (UNA SOLA VEZ)
+        // 2. EJECUTAMOS EL SCRAPPER PESADO Y ESTRUCTURAL (UNA SOLA VEZ)
         procesarBasesDeDatosMaestras();
 
-        // 3. RENDERIZAMOS LA VISTA (Milisegundos)
+        // 3. RENDERIZAMOS LA VISTA AL INSTANTE
         procesarYRenderizar();
 
         const session = JSON.parse(localStorage.getItem('np_session'));
@@ -90,19 +90,46 @@ async function loadAllData() {
 }
 
 // =========================================================================
-// FUNCIÓN PESADA: SE EJECUTA SOLO 1 VEZ AL RECARGAR LA PÁGINA O DAR REFRESH
+// FUNCIÓN PESADA NIVEL NASA: ESTRUCTURACIÓN DE CLINICA - TRATAMIENTO
 // =========================================================================
 function procesarBasesDeDatosMaestras() {
     const cleanPhone = (str) => String(str || '').replace(/[^0-9]/g, '');
     const cleanEmail = (str) => String(str || '').toLowerCase().trim();
     const normalizeStr = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
 
+    // Diccionario Oficiales
     const officialNames = { camp: {}, op: {} };
-    const getOfficialName = (type, rawVal, defaultVal) => {
-        if (!rawVal || String(rawVal).trim() === '') return defaultVal;
-        let norm = normalizeStr(rawVal);
-        if (!officialNames[type][norm]) officialNames[type][norm] = String(rawVal).trim();
-        return officialNames[type][norm]; 
+
+    // Desensamblador Inteligente de Campañas (Clínica vs Tratamiento)
+    const getOfficialCampName = (rawCamp) => {
+        if (!rawCamp || String(rawCamp).trim() === '') return null;
+        let str = String(rawCamp).trim();
+        
+        let clinica = str;
+        let tratamiento = "";
+        
+        if (str.includes('-')) {
+            let parts = str.split('-');
+            clinica = parts[0].trim();
+            tratamiento = parts.slice(1).join('-').trim(); // Por si hay múltiples guiones
+        }
+
+        let keyC = normalizeStr(clinica);
+        let keyT = normalizeStr(tratamiento);
+        let masterKey = keyT ? `${keyC}|${keyT}` : keyC; // Hash indestructible
+
+        if (!officialNames.camp[masterKey]) {
+            // Guardamos la primera versión como la "Bonita y Oficial", estandarizando el guión
+            officialNames.camp[masterKey] = tratamiento ? `${clinica} - ${tratamiento}` : clinica;
+        }
+        return officialNames.camp[masterKey];
+    };
+
+    const getOfficialOpName = (rawOp) => {
+        if (!rawOp || String(rawOp).trim() === '') return null;
+        let norm = normalizeStr(rawOp);
+        if (!officialNames.op[norm]) officialNames.op[norm] = String(rawOp).trim();
+        return officialNames.op[norm]; 
     };
 
     const masterCamp = { byPhone: {}, byEmail: {}, byName: {} };
@@ -113,8 +140,8 @@ function procesarBasesDeDatosMaestras() {
     sheets.forEach(sheetName => {
         if (!window.AppData.raw[sheetName]) return;
         window.AppData.raw[sheetName].forEach(row => {
-            let camp = getOfficialName('camp', row['Campaña'], null);
-            let op = getOfficialName('op', row['Operador'], null);
+            let camp = getOfficialCampName(row['Campaña']);
+            let op = getOfficialOpName(row['Operador']);
             
             let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
             let e = cleanEmail(row['Email'] || row['Email ']);
@@ -133,7 +160,7 @@ function procesarBasesDeDatosMaestras() {
         });
     });
 
-    // FASE 2: Reparar y curar la memoria RAM de todas las hojas
+    // FASE 2: Reparar y curar la memoria RAM de todas las hojas del Embudo
     sheets.forEach(sheetName => {
         if (!window.AppData.raw[sheetName]) return;
         window.AppData.raw[sheetName].forEach(row => {
@@ -141,19 +168,25 @@ function procesarBasesDeDatosMaestras() {
             let e = cleanEmail(row['Email'] || row['Email ']);
             let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
 
-            let baseCamp = getOfficialName('camp', row['Campaña'], null);
+            let baseCamp = getOfficialCampName(row['Campaña']);
             row['Campaña'] = masterCamp.byPhone[p] || masterCamp.byEmail[e] || masterCamp.byName[n] || baseCamp || 'Desconocida';
             
-            let baseOp = getOfficialName('op', row['Operador'], null);
+            let baseOp = getOfficialOpName(row['Operador']);
             row['Operador'] = masterOp.byPhone[p] || masterOp.byEmail[e] || masterOp.byName[n] || baseOp || 'Sin Asignar';
         });
     });
+
+    // FASE 3: Curar también los Meta Ads usando el mismo algoritmo para evitar cuellos de botella al filtrar
+    if (window.AppData.raw.ads) {
+        window.AppData.raw.ads.forEach(row => {
+            row['OfficialCampaign'] = getOfficialCampName(row['Campaign name']) || 'Desconocida';
+        });
+    }
 }
 // =========================================================================
 
 function parseDateSpanish(dateStr, row = null, colName = null) {
     if (!dateStr) return null;
-    // MAGIA DE RENDIMIENTO: Si ya calculamos esta fecha, la sacamos de la caché en milisegundos.
     if (row && colName && row[`_ts_${colName}`] !== undefined) { return row[`_ts_${colName}`]; }
 
     let str = String(dateStr).trim().toLowerCase();
@@ -254,7 +287,7 @@ function getRangoFechas() {
 }
 
 // =========================================================================
-// FUNCIÓN LIGERA: SE EJECUTA RÁPIDO CADA VEZ QUE CAMBIAS UN FILTRO
+// FUNCIÓN LIGERA: FILTRA LA DATA PERFECTA EN MILISEGUNDOS
 // =========================================================================
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
@@ -272,7 +305,7 @@ function procesarYRenderizar() {
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
 
-    // Rastrear qué campañas están activas HOY cruzando TODAS las hojas
+    // Buscar opciones activas en el rango de fechas
     window.AppData.raw.leads.forEach(r => { if(isDateValid(r, 'Fecha entrada lead')) campañasDisponibles.add(r['Campaña']); });
     
     if(window.AppData.raw.contactados) {
@@ -317,6 +350,7 @@ function procesarYRenderizar() {
     const finalCampaignSelected = campFilter.value;
     const finalOperatorSelected = opFilter.value;
 
+    // Filtros Ultra-Rápidos usando comparación exacta (==)
     const cumpleFiltroFinal = (row, colDate, isOpRelevant = false) => {
         if (finalCampaignSelected !== 'all' && row['Campaña'] !== finalCampaignSelected) return false;
         if (isOpRelevant && finalOperatorSelected !== 'all' && row['Operador'] !== finalOperatorSelected) return false;
@@ -324,11 +358,8 @@ function procesarYRenderizar() {
     };
 
     const cumpleFiltroAds = (row) => {
-        const normalizeStr = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
-        let nameAd = normalizeStr(row['Campaign name']);
-        let nameFil = normalizeStr(finalCampaignSelected);
-        
-        if (finalCampaignSelected !== 'all' && nameAd !== nameFil) return false;
+        // Gracias al scrapper de la Fase 3, aquí ya tenemos 'OfficialCampaign' curada.
+        if (finalCampaignSelected !== 'all' && row['OfficialCampaign'] !== finalCampaignSelected) return false;
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
