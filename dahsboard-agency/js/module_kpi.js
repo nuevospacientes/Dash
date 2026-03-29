@@ -18,37 +18,35 @@ function getBusinessMinutes(dateStart, dateEnd) {
     let start = new Date(dateStart);
     let end = new Date(dateEnd);
 
-    // 1. REGLA DE NEGOCIO: Si el contacto fue un domingo o fuera de horario (antes de 9am o después de las 6pm)
+    // 1. REGLA DE NEGOCIO: Si el contacto fue un domingo o fuera de horario
     let endDay = end.getDay();
     let endHour = end.getHours();
     if (endDay === 0 || endHour < 9 || endHour >= 18) {
-        return null; // Retornamos null para que NO se promedie en el Speed To Lead
+        return null; 
     }
 
     // 2. Ajustar el inicio (cuando entró el lead) si fue fuera de horario
     let startDay = start.getDay();
     let startHour = start.getHours();
 
-    if (startDay === 0) { // Si entró en Domingo -> Empieza a correr el Lunes a las 9am
+    if (startDay === 0) { 
         start.setDate(start.getDate() + 1);
         start.setHours(9, 0, 0, 0);
-    } else if (startHour < 9) { // Si entró antes de las 9am -> Empieza a las 9am de hoy
+    } else if (startHour < 9) { 
         start.setHours(9, 0, 0, 0);
-    } else if (startHour >= 18) { // Si entró a las 6pm o después -> Empieza a las 9am de mañana
+    } else if (startHour >= 18) { 
         start.setDate(start.getDate() + 1);
         start.setHours(9, 0, 0, 0);
-        if (start.getDay() === 0) { // Si "mañana" es domingo, lo saltamos al lunes
+        if (start.getDay() === 0) { 
             start.setDate(start.getDate() + 1);
         }
     }
 
-    // Si por error de base de datos el inicio quedó después del final
     if (start > end) return null;
 
     let minutes = 0;
     let current = new Date(start);
 
-    // Sumar días completos de 9 horas (540 minutos) saltando los domingos
     while (current.toDateString() !== end.toDateString()) {
         if (current.getDay() !== 0) {
             let endOfDay = new Date(current);
@@ -59,7 +57,6 @@ function getBusinessMinutes(dateStart, dateEnd) {
         current.setHours(9, 0, 0, 0);
     }
 
-    // Sumar los minutos del día en que finalmente fue contactado
     if (current.getDay() !== 0) {
         minutes += (end - current) / 60000;
     }
@@ -70,25 +67,27 @@ function getBusinessMinutes(dateStart, dateEnd) {
 function renderizarVistaGeneral(dataFiltrada) {
     const tLeads = dataFiltrada.leads.length;
     
-    // 1. LEADS CONTACTADOS (Únicos por número)
-    const leadsContactadosSet = new Set();
+    // 1. LEADS CONTACTADOS (Únicos por número, guardando la fila completa)
+    const contactadosMap = new Map();
     dataFiltrada.contactados.forEach(c => {
         let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-        if (num !== '') leadsContactadosSet.add(num);
+        if (num !== '' && !contactadosMap.has(num)) contactadosMap.set(num, c);
     });
-    const tContactados = leadsContactadosSet.size;
+    const leadsContactadosList = Array.from(contactadosMap.values());
+    const tContactados = leadsContactadosList.length;
 
-    // 2. LLAMADAS CONECTADAS (Únicos por número)
-    const llamadasConectadasSet = new Set();
+    // 2. LLAMADAS CONECTADAS (Únicos por número, guardando la fila completa)
+    const llamadasMap = new Map();
     dataFiltrada.llamadas.forEach(c => {
         let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-        if (num !== '') llamadasConectadasSet.add(num);
+        if (num !== '' && !llamadasMap.has(num)) llamadasMap.set(num, c);
     });
-    const tLlamadasConectadas = llamadasConectadasSet.size;
+    const llamadasConectadasList = Array.from(llamadasMap.values());
+    const tLlamadasConectadas = llamadasConectadasList.length;
+    
     const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
 
     // 3. CITAS SEPARADAS (Nuevas vs Calendario)
-    // Filtramos para asegurar que no sean reprogramadas (usamos la columna "Tipo de cita" si existe)
     const citasNuevas = dataFiltrada.citasGeneradas ? dataFiltrada.citasGeneradas.filter(c => {
         let tipo = String(c['Tipo de cita'] || '').toLowerCase();
         return !tipo.includes('reprogramada');
@@ -97,9 +96,10 @@ function renderizarVistaGeneral(dataFiltrada) {
     const tCitasCalendario = dataFiltrada.citasCalendario ? dataFiltrada.citasCalendario.length : 0;
 
     // 4. SHOWS TOTALES (Suma de Shows regulares + Shows NT)
-    const tShows = (dataFiltrada.shows ? dataFiltrada.shows.length : 0) + (dataFiltrada.showsNt ? dataFiltrada.showsNt.length : 0);
+    const todosLosShows = [...(dataFiltrada.shows || []), ...(dataFiltrada.showsNt || [])];
+    const tShows = todosLosShows.length;
     
-    // 5. VENTAS CERRADAS (Excluimos Shows NT y filtramos depósitos válidos solo de la hoja Shows normal)
+    // 5. VENTAS CERRADAS 
     const ventas = dataFiltrada.shows ? dataFiltrada.shows.filter(item => {
         const dep = (item['Deposito'] || '').toLowerCase().trim();
         return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
@@ -174,21 +174,32 @@ function renderizarVistaGeneral(dataFiltrada) {
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
     const cpa_citas = tCitasGeneradas > 0 ? (inversionActual / tCitasGeneradas).toFixed(2) : 0;
 
-    // INYECCIÓN A LAS 7 TARJETAS
+    // INYECCIÓN A LAS 7 TARJETAS Y EVENTOS DE CLIC
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
     if(kpiCards.length >= 7) {
+        
+        // 1. Leads
         kpiCards[0].querySelector('.metric-value').innerText = tLeads;
         kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
+        kpiCards[0].classList.add('clickable-card');
+        kpiCards[0].onclick = () => window.abrirModalLista('Volumen de Leads', dataFiltrada.leads, 'Fecha Entrada');
         
+        // 2. Speed To Lead (No es lista directa)
         kpiCards[1].querySelector('.metric-value').innerText = stlDisplay;
         
+        // 3. Contactados
         kpiCards[2].querySelector('.metric-value').innerText = tContactados;
         kpiCards[2].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
+        kpiCards[2].classList.add('clickable-card');
+        kpiCards[2].onclick = () => window.abrirModalLista('Leads Contactados', leadsContactadosList, 'Fecha 1er Llamada');
         
+        // 4. Llamadas Conectadas
         kpiCards[3].querySelector('.metric-value').innerText = tLlamadasConectadas;
         kpiCards[3].querySelector('.metric-subtitle').innerText = `Conectividad: ${conectividad}%`;
+        kpiCards[3].classList.add('clickable-card');
+        kpiCards[3].onclick = () => window.abrirModalLista('Llamadas Conectadas', llamadasConectadasList, 'Fecha Llamada');
 
-        // --- INYECCIÓN DIRECTA POR IDs PARA LA TARJETA DE CITAS ---
+        // 5. Citas
         const citasGenEl = document.getElementById('kpi-citas-gen');
         const citasCalEl = document.getElementById('kpi-citas-cal');
         if(citasGenEl && citasCalEl) {
@@ -197,16 +208,23 @@ function renderizarVistaGeneral(dataFiltrada) {
             document.getElementById('kpi-booking-rate').innerText = `${bookingRate}%`;
             document.getElementById('kpi-cpa-cita').innerText = cpa_citas;
         } else {
-            // Fallback por si la estructura HTML cambia en el futuro
             kpiCards[4].querySelector('.metric-value').innerText = `${tCitasGeneradas} | ${tCitasCalendario}`;
             kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa_citas}`;
         }
+        kpiCards[4].classList.add('clickable-card');
+        kpiCards[4].onclick = () => window.abrirModalLista('Citas Generadas (Nuevas)', citasNuevas, 'Fecha Cita');
         
+        // 6. Shows Totales
         kpiCards[5].querySelector('.metric-value').innerText = tShows;
         kpiCards[5].querySelector('.metric-subtitle').innerText = `Asist. s/Calendario: ${showRate}%`;
+        kpiCards[5].classList.add('clickable-card');
+        kpiCards[5].onclick = () => window.abrirModalLista('Shows y Asistencias', todosLosShows, 'Fecha Visita');
         
+        // 7. Ventas Cerradas
         kpiCards[6].querySelector('.metric-value').innerText = tVentas;
         kpiCards[6].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
+        kpiCards[6].classList.add('clickable-card');
+        kpiCards[6].onclick = () => window.abrirModalLista('Ventas Cerradas', ventas, 'Fecha Visita');
     }
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
@@ -219,7 +237,7 @@ function renderizarVistaGeneral(dataFiltrada) {
         topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
     }
 
-    // DISTRIBUCIÓN DE PAGOS (Solo toma la variable 'ventas' válida)
+    // DISTRIBUCIÓN DE PAGOS 
     const paymentContainer = document.getElementById('payment-distribution-container');
     if (paymentContainer) {
         paymentContainer.innerHTML = ''; 
@@ -256,6 +274,10 @@ function renderizarVistaGeneral(dataFiltrada) {
     }
 }
 
+// ============================================================================
+// FUNCIONES DE MODALES DE DETALLE (TABLAS)
+// ============================================================================
+
 function abrirModalPagos(metodo, listaVentas) {
     document.getElementById('payment-modal-title').innerText = metodo;
     const tbody = document.querySelector('#payment-details-table tbody');
@@ -273,3 +295,36 @@ function abrirModalPagos(metodo, listaVentas) {
     });
     document.getElementById('modal-payment-details').style.display = 'flex';
 }
+
+window.abrirModalLista = function(titulo, lista, tituloColFecha) {
+    document.getElementById('list-modal-title').innerText = titulo;
+    document.getElementById('list-col-fecha').innerText = tituloColFecha || 'Fecha';
+    
+    const tbody = document.querySelector('#list-details-table tbody');
+    tbody.innerHTML = '';
+
+    if (!lista || lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros para mostrar.</td></tr>';
+    } else {
+        lista.forEach(v => {
+            // Buscamos la fecha en cualquiera de los formatos comunes de tus hojas
+            let fecha = v['Fecha entrada lead'] || v['Fecha Lead entra'] || v['Fecha 1er llamada'] || v['Fecha last call'] || v['Cita generada'] || v['Fecha Visita'] || '-';
+            let nombre = v['Nombre'] || v['First Name'] || v['Lead Name'] || 'Desconocido';
+            let telefono = v['Numero'] || v['Teléfono'] || v['Telefono'] || v['Phone'] || v['Número'] || '-';
+            let campana = v['Campaña'] || '-';
+            let operador = v['Operador'] || 'Sin Asignar';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="white-space: nowrap; color: var(--text-muted); font-size: 0.85rem;">${fecha}</td>
+                <td><strong>${nombre}</strong></td>
+                <td style="color: var(--brand-primary); font-weight: 500;">${telefono}</td>
+                <td style="color: var(--text-main); font-size: 0.85rem;">${campana}</td>
+                <td><span style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${operador}</span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    
+    document.getElementById('modal-list-details').style.display = 'flex';
+};
