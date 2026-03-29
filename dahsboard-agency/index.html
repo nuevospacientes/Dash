@@ -223,6 +223,36 @@
                     </div>
                 </div>
             </div>
+
+            <div id="modal-custom-chart" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-top: 4px solid var(--accent-success);">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-chart-line"></i> Crear Métrica de Gráfico</h2>
+                        <button onclick="document.getElementById('modal-custom-chart').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <p class="modal-desc" style="margin-bottom: 15px;">Crea una nueva métrica matemática para graficar (ej: Booking Rate).</p>
+                    
+                    <div class="input-group">
+                        <label>Nombre de la Métrica</label>
+                        <input type="text" id="chart-custom-name" placeholder="Ej. Tasa de Asistencia">
+                    </div>
+                    <div class="input-group">
+                        <label>Fórmula Matemática</label>
+                        <input type="text" id="chart-custom-formula" placeholder="Ej. ( {{shows}} / {{citas}} ) * 100" style="font-family: monospace; background: rgba(0,0,0,0.2);">
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; line-height: 1.5;">
+                            <strong>Variables (Clic para añadir):</strong> <br>
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{leads}}')">{{leads}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{contactados}}')">{{contactados}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{llamadas}}')">{{llamadas}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{citas}}')">{{citas}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{shows}}')">{{shows}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{ventas}}')">{{ventas}}</code>, 
+                            <code style="color: var(--accent-success); cursor: pointer;" onclick="insertChartVar('{{stl}}')">{{stl}}</code>
+                        </p>
+                    </div>
+                    <button onclick="guardarCustomChartMetric()" class="btn-primary w-full" style="background: var(--accent-success);">Guardar y Graficar</button>
+                </div>
+            </div>
             
             <section id="view-general" class="view-section active">
                 
@@ -317,9 +347,15 @@
                     <div class="kpi-card" style="height: auto; min-height: 480px; display: flex; flex-direction: column; position: relative;">
                         
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 15px;">
-                            <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 250px;">
-                                <h3 class="chart-title" style="margin-bottom: 0;">Tendencia Comparativa Interactiva</h3>
-                                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Selecciona dos métricas para comparar su rendimiento en el tiempo.</p>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 250px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <h3 class="chart-title" style="margin-bottom: 0;">Tendencia Interactiva</h3>
+                                    <span id="chart-dynamic-date-label" style="background: var(--bg-input); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: var(--brand-primary); border: 1px solid var(--border-color);">
+                                        --
+                                    </span>
+                                </div>
+                                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Compara métricas y visualiza tus fórmulas personalizadas.</p>
                             </div>
                             
                             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -348,10 +384,13 @@
                                         <option value="stl">Speed to Lead Promedio</option>
                                     </select>
                                 </div>
+                                <button onclick="document.getElementById('modal-custom-chart').style.display='flex'" class="icon-btn" title="Crear Métrica para Gráfico" style="border: none; background: rgba(55,202,55,0.1); color: var(--accent-success); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; border-radius: 8px;">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
                             </div>
                         </div>
 
-                        <div style="position: relative; flex-grow: 1; width: 100%;">
+                        <div style="position: relative; flex-grow: 1; width: 100%; min-height: 400px;">
                             <canvas id="chart-tendencia-dinamica"></canvas>
                         </div>
                     </div>
