@@ -188,81 +188,108 @@ function getRangoFechas() {
 function procesarYRenderizar() {
     if (!window.AppData || !window.AppData.raw || !window.AppData.raw.leads) return;
 
+    // --- SCRAPPER PROFUNDO: NORMALIZACIÓN EXTREMA ---
     const cleanPhone = (str) => String(str || '').replace(/[^0-9]/g, '');
     const cleanEmail = (str) => String(str || '').toLowerCase().trim();
-    const cleanName = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
-    const cleanCamp = (str) => String(str || '').trim();
+    // Normaliza eliminando tildes, pasando a minúscula y quitando espacios extra
+    const normalizeStr = (str) => String(str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').trim();
+
+    // Diccionario para mantener los nombres "Oficiales" y bonitos de campaña y operador
+    const officialNames = { camp: {}, op: {} };
+    const getOfficialName = (type, rawVal, defaultVal) => {
+        if (!rawVal || String(rawVal).trim() === '') return defaultVal;
+        let norm = normalizeStr(rawVal);
+        if (!officialNames[type][norm]) officialNames[type][norm] = String(rawVal).trim();
+        return officialNames[type][norm]; // Retorna siempre la versión oficial con sus mayúsculas
+    };
 
     const masterCamp = { byPhone: {}, byEmail: {}, byName: {} };
     const masterOp = { byPhone: {}, byEmail: {}, byName: {} };
+    const sheets = ['leads', 'contactados', 'llamadas', 'citas', 'shows', 'showsNt', 'noShows', 'cancelados'];
 
-    window.AppData.raw.leads.forEach(r => {
-        let camp = cleanCamp(r['Campaña']);
-        if (!camp) return;
-        
-        let p = cleanPhone(r['Numero'] || r['Teléfono'] || r['Telefono'] || r['Phone'] || r['Número']);
-        let e = cleanEmail(r['Email'] || r['Email ']);
-        let n = cleanName(r['Nombre'] || r['First Name'] || r['Lead Name']);
-
-        if (p) masterCamp.byPhone[p] = camp;
-        if (e) masterCamp.byEmail[e] = camp;
-        if (n && n.length > 3) masterCamp.byName[n] = camp;
-    });
-
-    const feedOperators = (sheet) => {
-        if(!sheet) return;
-        sheet.forEach(r => {
-            let op = cleanCamp(r['Operador']);
-            if (!op || op === 'Sin Asignar') return;
+    // 1. APRENDER de todas las hojas simultáneamente para cruzar la data rota
+    sheets.forEach(sheetName => {
+        if (!window.AppData.raw[sheetName]) return;
+        window.AppData.raw[sheetName].forEach(row => {
+            let camp = getOfficialName('camp', row['Campaña'], null);
+            let op = getOfficialName('op', row['Operador'], null);
             
-            let p = cleanPhone(r['Numero'] || r['Teléfono'] || r['Telefono'] || r['Phone'] || r['Número']);
-            let e = cleanEmail(r['Email'] || r['Email ']);
-            let n = cleanName(r['Nombre'] || r['First Name'] || r['Lead Name']);
+            let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
+            let e = cleanEmail(row['Email'] || row['Email ']);
+            let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
 
-            if (p && !masterOp.byPhone[p]) masterOp.byPhone[p] = op;
-            if (e && !masterOp.byEmail[e]) masterOp.byEmail[e] = op;
-            if (n && n.length > 3 && !masterOp.byName[n]) masterOp.byName[n] = op;
+            if (camp) {
+                if (p) masterCamp.byPhone[p] = camp;
+                if (e) masterCamp.byEmail[e] = camp;
+                if (n && n.length > 3) masterCamp.byName[n] = camp;
+            }
+            if (op && op !== 'Sin Asignar') {
+                if (p && !masterOp.byPhone[p]) masterOp.byPhone[p] = op;
+                if (e && !masterOp.byEmail[e]) masterOp.byEmail[e] = op;
+                if (n && n.length > 3 && !masterOp.byName[n]) masterOp.byName[n] = op;
+            }
         });
-    };
-    feedOperators(window.AppData.raw.citas);
-    feedOperators(window.AppData.raw.contactados);
-
-    ['leads', 'contactados', 'llamadas', 'citas', 'shows', 'showsNt', 'noShows', 'cancelados'].forEach(sheetName => {
-        if(window.AppData.raw[sheetName]) {
-            window.AppData.raw[sheetName].forEach(row => {
-                let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
-                let e = cleanEmail(row['Email'] || row['Email ']);
-                let n = cleanName(row['Nombre'] || row['First Name'] || row['Lead Name']);
-
-                row['Campaña'] = masterCamp.byPhone[p] || masterCamp.byEmail[e] || masterCamp.byName[n] || cleanCamp(row['Campaña']) || 'Desconocida';
-                row['Operador'] = masterOp.byPhone[p] || masterOp.byEmail[e] || masterOp.byName[n] || cleanCamp(row['Operador']) || 'Sin Asignar';
-            });
-        }
     });
 
+    // 2. REPARAR (ATRIBUIR) la data en todas las hojas
+    sheets.forEach(sheetName => {
+        if (!window.AppData.raw[sheetName]) return;
+        window.AppData.raw[sheetName].forEach(row => {
+            let p = cleanPhone(row['Numero'] || row['Teléfono'] || row['Telefono'] || row['Phone'] || row['Número']);
+            let e = cleanEmail(row['Email'] || row['Email ']);
+            let n = normalizeStr(row['Nombre'] || row['First Name'] || row['Lead Name']);
+
+            let baseCamp = getOfficialName('camp', row['Campaña'], null);
+            row['Campaña'] = masterCamp.byPhone[p] || masterCamp.byEmail[e] || masterCamp.byName[n] || baseCamp || 'Desconocida';
+            
+            let baseOp = getOfficialName('op', row['Operador'], null);
+            row['Operador'] = masterOp.byPhone[p] || masterOp.byEmail[e] || masterOp.byName[n] || baseOp || 'Sin Asignar';
+        });
+    });
+    // --- FIN DEL SCRAPPER PROFUNDO ---
+
+    // --- FILTRADO INTELIGENTE (Soluciona el cuello de botella de campañas desaparecidas) ---
     const { start, end } = getRangoFechas();
-    
+
+    // Función validación de fecha base
+    const isDateValid = (row, colFecha) => {
+        if (start === null || end === null) return true;
+        if (!row[colFecha] || String(row[colFecha]).trim() === '') return false;
+        const rowTime = parseDateSpanish(row[colFecha], row, colFecha); 
+        if (!rowTime) return false; 
+        return rowTime >= start && rowTime < end;
+    };
+
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
 
-    window.AppData.raw.leads.forEach(r => {
-        let esValida = true;
-        if (start !== null && end !== null) {
-            const t = parseDateSpanish(r['Fecha entrada lead'], r, 'Fecha entrada lead');
-            if (!t || t < start || t >= end) esValida = false;
-        }
-        if (esValida && r['Campaña']) campañasDisponibles.add(r['Campaña'].trim());
-    });
-
+    // Rastrear qué campañas están activas HOY cruzando TODAS las hojas (No solo Leads)
+    window.AppData.raw.leads.forEach(r => { if(isDateValid(r, 'Fecha entrada lead')) campañasDisponibles.add(r['Campaña']); });
+    
+    if(window.AppData.raw.contactados) {
+        window.AppData.raw.contactados.forEach(r => { 
+            let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
+            if(isDateValid(r, colDate)) campañasDisponibles.add(r['Campaña']); 
+        });
+    }
+    
+    if(window.AppData.raw.llamadas) {
+        window.AppData.raw.llamadas.forEach(r => { 
+            let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
+            if(isDateValid(r, col)) campañasDisponibles.add(r['Campaña']); 
+        });
+    }
+    
     window.AppData.raw.citas.forEach(r => {
-        let esValida = true;
-        if (start !== null && end !== null) {
-            const t = parseDateSpanish(r['Cita generada'], r, 'Cita generada');
-            if (!t || t < start || t >= end) esValida = false;
+        if(isDateValid(r, 'Cita generada')) {
+            campañasDisponibles.add(r['Campaña']);
+            operadoresDisponibles.add(r['Operador']);
         }
-        if (esValida && r['Operador']) operadoresDisponibles.add(r['Operador'].trim());
     });
 
+    window.AppData.raw.shows.forEach(r => { if(isDateValid(r, 'Fecha Visita')) campañasDisponibles.add(r['Campaña']); });
+
+    // Armado del Dropdown
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
     const prevCamp = campFilter.value; const prevOp = opFilter.value;
@@ -282,26 +309,15 @@ function procesarYRenderizar() {
     const finalCampaignSelected = campFilter.value;
     const finalOperatorSelected = opFilter.value;
 
-    const cumpleFiltro = (row, colCampaña, colOperador, colFecha) => {
-        if (finalCampaignSelected !== 'all' && colCampaña && row[colCampaña] !== undefined) {
-            if (String(row[colCampaña]).trim() !== finalCampaignSelected) return false;
-        }
-        if (finalOperatorSelected !== 'all' && colOperador && row[colOperador] !== undefined) {
-            if (String(row[colOperador]).trim() !== finalOperatorSelected) return false;
-        }
-        if (start !== null && end !== null && colFecha) {
-            if (!row[colFecha] || String(row[colFecha]).trim() === '') return false;
-            const rowTime = parseDateSpanish(row[colFecha], row, colFecha); 
-            if (!rowTime) return false; 
-            if (rowTime < start || rowTime >= end) return false;
-        }
-        return true;
+    // Filtro Definitivo
+    const cumpleFiltroFinal = (row, colDate, isOpRelevant = false) => {
+        if (finalCampaignSelected !== 'all' && row['Campaña'] !== finalCampaignSelected) return false;
+        if (isOpRelevant && finalOperatorSelected !== 'all' && row['Operador'] !== finalOperatorSelected) return false;
+        return isDateValid(row, colDate);
     };
 
     const cumpleFiltroAds = (row) => {
-        if (finalCampaignSelected !== 'all' && row['Campaign name'] !== undefined) {
-            if (String(row['Campaign name']).trim() !== finalCampaignSelected) return false;
-        }
+        if (finalCampaignSelected !== 'all' && getOfficialName('camp', row['Campaign name'], null) !== finalCampaignSelected) return false;
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
             if (rowTime < start || rowTime >= end) return false;
@@ -310,22 +326,27 @@ function procesarYRenderizar() {
     };
 
     const dataFiltrada = {
-        leads: window.AppData.raw.leads.filter(r => cumpleFiltro(r, 'Campaña', null, 'Fecha entrada lead')),
+        leads: window.AppData.raw.leads.filter(r => cumpleFiltroFinal(r, 'Fecha entrada lead', false)),
+        
         contactados: window.AppData.raw.contactados.filter(r => {
             let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
-            return cumpleFiltro(r, 'Campaña', null, colDate);
+            return cumpleFiltroFinal(r, colDate, false);
         }), 
+        
         llamadas: window.AppData.raw.llamadas.filter(r => {
             let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
-            return cumpleFiltro(r, 'Campaña', null, col);
+            return cumpleFiltroFinal(r, col, false);
         }),
-        citas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
-        citasGeneradas: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita generada')),
-        citasCalendario: window.AppData.raw.citas.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Cita Programada en')),
-        shows: window.AppData.raw.shows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
-        showsNt: window.AppData.raw.showsNt ? window.AppData.raw.showsNt.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')) : [],
-        noShows: window.AppData.raw.noShows.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
-        cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltro(r, 'Campaña', 'Operador', 'Fecha Visita')),
+        
+        citas: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true)),
+        citasGeneradas: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true)),
+        citasCalendario: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita Programada en', true)),
+        
+        shows: window.AppData.raw.shows.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)),
+        showsNt: window.AppData.raw.showsNt ? window.AppData.raw.showsNt.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)) : [],
+        
+        noShows: window.AppData.raw.noShows.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)),
+        cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)),
         ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
         dateRange: { start, end } 
     };
