@@ -222,13 +222,17 @@
                     </div>
 
                     <div class="kpi-card" style="flex: 1; min-width: 30%; border-top: 4px solid var(--brand-primary);">
-                        <div class="metric-title">Citas (Generadas | Calendario)</div>
-                        <div style="display: flex; align-items: baseline; gap: 8px;">
-                            <div class="metric-value" id="kpi-citas-gen">0</div>
-                            <div style="color: var(--text-muted); font-size: 1.5rem; font-weight: 300;">|</div>
-                            <div class="metric-value" id="kpi-citas-cal" style="color: var(--accent-warning);">0</div>
+                        <div class="metric-title" style="text-align: center; margin-bottom: 10px;">Citas Generadas vs. Citas Calendario</div>
+                        <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 5px;">
+                            <div style="text-align: center;">
+                                <div class="metric-value" id="kpi-citas-gen">0</div>
+                            </div>
+                            <div style="color: var(--border-color); font-size: 2rem; font-weight: 300;">|</div>
+                            <div style="text-align: center;">
+                                <div class="metric-value" id="kpi-citas-cal" style="color: var(--accent-warning);">0</div>
+                            </div>
                         </div>
-                        <div class="metric-subtitle">Booking Rate: <span id="kpi-booking-rate">0%</span> <br> Costo x Cita: $<span id="kpi-cpa-cita">0.00</span></div>
+                        <div class="metric-subtitle" style="text-align: center;">Booking Rate: <span id="kpi-booking-rate">0%</span> <br> Costo x Cita: $<span id="kpi-cpa-cita">0.00</span></div>
                     </div>
 
                     <div class="kpi-card" style="flex: 1; min-width: 30%; border-top: 4px solid var(--accent-success); background: linear-gradient(180deg, rgba(55,202,55,0.05), transparent);">
