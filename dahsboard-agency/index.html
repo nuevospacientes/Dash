@@ -197,6 +197,32 @@
                     <button onclick="guardarTrackerSettings()" class="btn-primary w-full" style="background: #bc13fe;">Guardar y Recalcular</button>
                 </div>
             </div>
+
+            <div id="modal-list-details" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="max-width: 900px; border-top: 4px solid var(--brand-primary);">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-list-ul"></i> <span id="list-modal-title" style="color: var(--brand-primary);">Detalles</span></h2>
+                        <button onclick="document.getElementById('modal-list-details').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <p class="modal-desc" style="margin-bottom: 15px;">Lista detallada de registros correspondientes a esta métrica.</p>
+                    
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                        <table class="data-table" id="list-details-table">
+                            <thead style="position: sticky; top: 0; background: var(--bg-panel); z-index: 1;">
+                                <tr>
+                                    <th id="list-col-fecha">Fecha</th>
+                                    <th>Paciente</th>
+                                    <th>Teléfono</th>
+                                    <th>Campaña</th>
+                                    <th>Operador</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             
             <section id="view-general" class="view-section active">
                 
