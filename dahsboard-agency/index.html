@@ -127,6 +127,30 @@
                 </div>
             </div>
 
+            <div id="modal-tracker-settings" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-top: 4px solid #bc13fe;">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-stopwatch"></i> Umbrales de Llamada</h2>
+                        <button onclick="document.getElementById('modal-tracker-settings').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <p class="modal-desc" style="margin-bottom: 15px;">Define cuántos segundos debe durar una llamada para considerarse en cada etapa.</p>
+                    
+                    <div class="input-group">
+                        <label>Pick Up Rate (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-pickup" value="5">
+                    </div>
+                    <div class="input-group">
+                        <label>Connection Rate (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-conn" value="15">
+                    </div>
+                    <div class="input-group">
+                        <label>Conversación Efectiva (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-eff" value="60">
+                    </div>
+                    <button onclick="guardarTrackerSettings()" class="btn-primary w-full" style="background: #bc13fe;">Guardar y Recalcular</button>
+                </div>
+            </div>
+            
             <div id="modal-error" class="modal-overlay" style="display: none; z-index: 10000;">
                 <div class="modal-content" style="border-color: var(--accent-danger);">
                     <div class="modal-header">
@@ -310,9 +334,40 @@
                 
             </section>
 
+            <div id="modal-tracker-settings" class="modal-overlay" style="display: none; z-index: 10000;">
+                <div class="modal-content" style="border-top: 4px solid #bc13fe;">
+                    <div class="modal-header">
+                        <h2><i class="fa-solid fa-stopwatch"></i> Umbrales de Llamada</h2>
+                        <button onclick="document.getElementById('modal-tracker-settings').style.display='none'" class="close-btn">&times;</button>
+                    </div>
+                    <p class="modal-desc" style="margin-bottom: 15px;">Define cuántos segundos debe durar una llamada para considerarse en cada etapa.</p>
+                    
+                    <div class="input-group">
+                        <label>Pick Up Rate (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-pickup" value="5">
+                    </div>
+                    <div class="input-group">
+                        <label>Connection Rate (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-conn" value="15">
+                    </div>
+                    <div class="input-group">
+                        <label>Conversación Efectiva (Segundos mínimos)</label>
+                        <input type="number" id="track-sec-eff" value="60">
+                    </div>
+                    <button onclick="guardarTrackerSettings()" class="btn-primary w-full" style="background: #bc13fe;">Guardar y Recalcular</button>
+                </div>
+            </div>
+
             <section id="view-tracker" class="view-section">
-            <div class="grid-cards" style="grid-template-columns: repeat(5, 1fr);">
-                    <div class="kpi-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <h2 class="section-title" style="margin-bottom: 0;">Performance y Calidad de Llamadas</h2>
+                        <button onclick="abrirModalTracker()" class="icon-btn" title="Configurar Umbrales de Tiempo" style="border: none; background: rgba(255,255,255,0.05); color: #bc13fe; cursor: pointer; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-sliders"></i></button>
+                    </div>
+                </div>
+
+                <div class="grid-cards" style="grid-template-columns: repeat(5, 1fr);">
+                    <div class="kpi-card" style="border-top: 3px solid var(--accent-warning);">
                         <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
                             Speed To Lead
                             <div class="tooltip-container">
@@ -322,37 +377,40 @@
                         </div>
                         <div class="metric-value">0 min</div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card" style="border-top: 3px solid #bc13fe;">
                         <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
                             Pick Up Rate
                             <div class="tooltip-container">
                                 <i class="fa-regular fa-circle-question"></i>
-                                <span class="tooltip-text">Porcentaje de llamadas emitidas que fueron contestadas por el prospecto y duraron más de 5 segundos.</span>
+                                <span class="tooltip-text" id="track-tt-pickup">Porcentaje de llamadas emitidas que fueron contestadas por el prospecto y duraron más de 5 segundos.</span>
                             </div>
                         </div>
                         <div class="metric-value">0%</div>
+                        <div class="metric-subtitle" id="track-lbl-pickup">Mínimo 5 seg</div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card" style="border-top: 3px solid #bc13fe;">
                         <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
                             Connection Rate
                             <div class="tooltip-container">
                                 <i class="fa-regular fa-circle-question"></i>
-                                <span class="tooltip-text">Porcentaje de llamadas donde se logró retener al prospecto en línea por más de 15 segundos.</span>
+                                <span class="tooltip-text" id="track-tt-conn">Porcentaje de llamadas donde se logró retener al prospecto en línea por más de 15 segundos.</span>
                             </div>
                         </div>
                         <div class="metric-value">0%</div>
+                        <div class="metric-subtitle" id="track-lbl-conn">Mínimo 15 seg</div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card" style="border-top: 3px solid #bc13fe;">
                         <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
                             Conversación Efectiva
                             <div class="tooltip-container">
                                 <i class="fa-regular fa-circle-question"></i>
-                                <span class="tooltip-text">Porcentaje de llamadas que se convirtieron en una conversación real, superando la barrera de los 60 segundos.</span>
+                                <span class="tooltip-text" id="track-tt-eff">Porcentaje de llamadas que se convirtieron en una conversación real, superando la barrera de los 60 segundos.</span>
                             </div>
                         </div>
                         <div class="metric-value">0%</div>
+                        <div class="metric-subtitle" id="track-lbl-eff">Mínimo 60 seg</div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card" style="border-top: 3px solid var(--border-color);">
                         <div class="metric-title" style="display: flex; align-items: center; justify-content: center;">
                             Llamadas Emitidas
                             <div class="tooltip-container">
