@@ -2,10 +2,17 @@
    GRÁFICOS VISUALES
    ========================================== */
 
-let chartTendencia = null; let chartHorasHoy = null; let chartHistoricoDias = null; let chartPagosDona = null;
-let currentDynamicLabelHoy = ""; let currentDynamicLabelHist = ""; let activeDynamicTab = "hoy"; 
+let chartTendencia = null; 
+let chartTendenciaDinamica = null; // Nuevo gráfico interactivo
+let chartHorasHoy = null; 
+let chartHistoricoDias = null; 
+let chartPagosDona = null;
+let currentDynamicLabelHoy = ""; 
+let currentDynamicLabelHist = ""; 
+let activeDynamicTab = "hoy"; 
 
-Chart.defaults.color = '#BDBDBD'; Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.color = '#BDBDBD'; 
+Chart.defaults.font.family = "'Inter', sans-serif";
 
 window.switchDynamicTab = function(tab) {
     activeDynamicTab = tab;
@@ -25,12 +32,27 @@ window.switchDynamicTab = function(tab) {
     }
 };
 
-function renderizarGraficos(dataFiltrada) {
-    const leads = dataFiltrada.leads || []; const contactadosFiltrados = dataFiltrada.contactados || [];
-    const llamadas = dataFiltrada.llamadas || []; const citas = dataFiltrada.citas || []; const shows = dataFiltrada.shows || [];
-    const { start, end } = dataFiltrada.dateRange || { start: null, end: null };
+// Diccionario de configuración para el gráfico interactivo
+const METRIC_CONFIG = {
+    'leads': { label: 'Volumen de Leads', color: '#3b6bfa', isReverse: false },
+    'contactados': { label: 'Contactados Únicos', color: '#f6ad55', isReverse: false },
+    'llamadas': { label: 'Llamadas Conectadas', color: '#9f7aea', isReverse: false },
+    'citas': { label: 'Citas Agendadas', color: '#37ca37', isReverse: false },
+    'shows': { label: 'Asistencias (Shows)', color: '#fbbf24', isReverse: false },
+    'ventas': { label: 'Ventas Cerradas', color: '#e93d3d', isReverse: false },
+    'stl': { label: 'Speed to Lead (Min)', color: '#bc13fe', isReverse: true } // STL invertido para que arriba sea mejor
+};
 
-    // 1. TENDENCIA GENERAL
+function renderizarGraficos(dataFiltrada) {
+    const leads = dataFiltrada.leads || []; 
+    const contactadosFiltrados = dataFiltrada.contactados || [];
+    const llamadas = dataFiltrada.llamadas || []; 
+    const citas = dataFiltrada.citas || []; 
+    const shows = dataFiltrada.shows || [];
+    const { start, end } = dataFiltrada.dateRange || { start: null, end: null };
+    const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
+
+    // 1. LÍNEA DE TIEMPO BASE (Sirve para ambos gráficos)
     let timeline = {};
     const agruparPorFecha = (array, propFecha, key, filterFn = null) => {
         if (!array) return;
@@ -43,15 +65,29 @@ function renderizarGraficos(dataFiltrada) {
                 let t = new Date(d).getTime();
                 if (start !== null && end !== null) { if (t < start || t >= end) return; }
                 let fechaStr = new Date(d).toISOString().split('T')[0];
-                if (!timeline[fechaStr]) timeline[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0 };
-                timeline[fechaStr][key]++;
+                if (!timeline[fechaStr]) timeline[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 };
+                
+                // Si es STL, sumamos los minutos, si no, contamos
+                if (key === 'stl') {
+                    let bMins = item['_stl_' + globalTz];
+                    if (bMins !== undefined && bMins !== null) {
+                        timeline[fechaStr].stlSum += bMins;
+                        timeline[fechaStr].stlCount++;
+                    }
+                } else {
+                    timeline[fechaStr][key]++;
+                }
             }
         });
     };
 
-    agruparPorFecha(leads, 'Fecha entrada lead', 'leads'); agruparPorFecha(contactadosFiltrados, 'Fecha 1er llamada', 'contactados');
-    agruparPorFecha(llamadas, 'Fecha last call', 'llamadas'); agruparPorFecha(citas, 'Cita generada', 'citas'); agruparPorFecha(shows, 'Fecha Visita', 'shows');
+    agruparPorFecha(leads, 'Fecha entrada lead', 'leads'); 
+    agruparPorFecha(contactadosFiltrados, 'Fecha 1er llamada', 'contactados');
+    agruparPorFecha(llamadas, 'Fecha last call', 'llamadas'); 
+    agruparPorFecha(citas, 'Cita generada', 'citas'); 
+    agruparPorFecha(shows, 'Fecha Visita', 'shows');
     agruparPorFecha(shows, 'Fecha Visita', 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
+    agruparPorFecha(contactadosFiltrados, 'Fecha 1er llamada', 'stl'); // Procesamos STL para el gráfico interactivo
 
     let labelsFechas = Object.keys(timeline).sort();
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -64,6 +100,8 @@ function renderizarGraficos(dataFiltrada) {
     }
 
     let labelsEjeX = labelsFechas.map(f => new Date(f + 'T00:00:00').getDate().toString());
+
+    // --- GRÁFICO 1: TENDENCIA CLÁSICA (Mantenemos el original intacto) ---
     const ctxTendencia = document.getElementById('chart-tendencia');
     if (ctxTendencia) {
         if (chartTendencia) chartTendencia.destroy();
@@ -83,8 +121,79 @@ function renderizarGraficos(dataFiltrada) {
         });
     }
 
-    // 2. DINÁMICA DUAL (HOY vs HISTÓRICO)
-    const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
+    // --- GRÁFICO 2: TENDENCIA DINÁMICA INTERACTIVA ---
+    window.updateDynamicChart = function() {
+        const ctxDinamica = document.getElementById('chart-tendencia-dinamica');
+        if(!ctxDinamica) return;
+
+        const sel1 = document.getElementById('grafico-metrica-1');
+        const sel2 = document.getElementById('grafico-metrica-2');
+        let m1 = sel1 ? sel1.value : 'leads';
+        let m2 = sel2 ? sel2.value : 'citas';
+
+        let conf1 = METRIC_CONFIG[m1];
+        let conf2 = METRIC_CONFIG[m2];
+
+        // Extraer los datos según lo que eligió el usuario
+        const extractData = (key) => {
+            return labelsFechas.map(f => {
+                if (key === 'stl') return timeline[f].stlCount > 0 ? Math.round(timeline[f].stlSum / timeline[f].stlCount) : 0;
+                return timeline[f][key] || 0;
+            });
+        };
+
+        if (chartTendenciaDinamica) chartTendenciaDinamica.destroy();
+        
+        chartTendenciaDinamica = new Chart(ctxDinamica, {
+            type: 'line',
+            data: {
+                labels: labelsEjeX,
+                datasets: [
+                    { 
+                        label: conf1.label, 
+                        data: extractData(m1), 
+                        borderColor: conf1.color, 
+                        backgroundColor: conf1.color, 
+                        tension: 0.4, 
+                        borderWidth: 3, 
+                        yAxisID: 'y' 
+                    },
+                    { 
+                        label: conf2.label, 
+                        data: extractData(m2), 
+                        borderColor: conf2.color, 
+                        backgroundColor: conf2.color, 
+                        tension: 0.4, 
+                        borderWidth: 3, 
+                        borderDash: [5, 5], // Línea punteada para diferenciarla
+                        yAxisID: 'y1' 
+                    }
+                ]
+            }, 
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                interaction: { mode: 'index', intersect: false }, 
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { 
+                        type: 'linear', display: true, position: 'left', 
+                        reverse: conf1.isReverse // Invierte si es STL
+                    },
+                    y1: { 
+                        type: 'linear', display: true, position: 'right', 
+                        reverse: conf2.isReverse, // Invierte si es STL
+                        grid: { drawOnChartArea: false } 
+                    }
+                }
+            }
+        });
+    };
+
+    // Pintar el gráfico dinámico por primera vez
+    window.updateDynamicChart();
+
+    // 3. DINÁMICA DUAL (HOY vs HISTÓRICO)
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
     const rawContactados = (window.AppData && window.AppData.raw) ? window.AppData.raw.contactados : [];
     const campaignSelected = document.getElementById('global-campaign-filter') ? document.getElementById('global-campaign-filter').value : 'all';
@@ -100,7 +209,7 @@ function renderizarGraficos(dataFiltrada) {
         return d;
     };
 
-    // --- 2A. HISTÓRICO (Agrupa por Fecha de LLAMADA) ---
+    // --- HISTÓRICO ---
     let timelineHist = {};
     contactadosFiltrados.forEach(c => {
         let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
@@ -143,7 +252,7 @@ function renderizarGraficos(dataFiltrada) {
         });
     }
 
-    // --- 2B. HOY (Agrupa por Hora de LLAMADA) ---
+    // --- HOY ---
     const currentHourTz = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: globalTz, hour: 'numeric', hourCycle: 'h23' }).format(new Date()), 10);
     const pToday = new Intl.DateTimeFormat('en-US', { timeZone: globalTz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
     const todayStr = `${pToday.find(p=>p.type==='year').value}-${pToday.find(p=>p.type==='month').value}-${pToday.find(p=>p.type==='day').value}`;
@@ -161,7 +270,7 @@ function renderizarGraficos(dataFiltrada) {
         if (dateL) {
             let y = dateL.getFullYear(), m = String(dateL.getMonth()+1).padStart(2,'0'), d = String(dateL.getDate()).padStart(2,'0');
             if (`${y}-${m}-${d}` === todayStr) {
-                let h = dateL.getHours(); // <-- AHORA SÍ: Agrupado por la hora real de la llamada
+                let h = dateL.getHours(); 
                 if (h >= 0 && h <= currentHourTz) {
                     volHoy[h]++;
                     let bMins = c['_stl_' + globalTz];
@@ -196,7 +305,7 @@ function renderizarGraficos(dataFiltrada) {
 
     window.switchDynamicTab(activeDynamicTab);
 
-    // 3. DISTRIBUCIÓN DE PAGOS
+    // 4. DISTRIBUCIÓN DE PAGOS
     const pagosObj = {};
     shows.forEach(v => {
         let dep = (v['Deposito'] || '').trim();
