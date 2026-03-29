@@ -17,6 +17,7 @@ const DB_URLS = {
     // 3. Citas y Asistencias
     citasGeneradas: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=2080204459&single=true&output=csv",
     shows: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1058387781&single=true&output=csv",
+    showsNt: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1260765281&single=true&output=csv",
     noShows: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1792330943&single=true&output=csv",
     cancelaCita: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1896787364&single=true&output=csv",
     
