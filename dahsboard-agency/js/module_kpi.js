@@ -188,8 +188,19 @@ function renderizarVistaGeneral(dataFiltrada) {
         kpiCards[3].querySelector('.metric-value').innerText = tLlamadasConectadas;
         kpiCards[3].querySelector('.metric-subtitle').innerText = `Conectividad: ${conectividad}%`;
 
-        kpiCards[4].querySelector('.metric-value').innerText = tCitasGeneradas;
-        kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa_citas}`;
+        // --- INYECCIÓN DIRECTA POR IDs PARA LA TARJETA DE CITAS ---
+        const citasGenEl = document.getElementById('kpi-citas-gen');
+        const citasCalEl = document.getElementById('kpi-citas-cal');
+        if(citasGenEl && citasCalEl) {
+            citasGenEl.innerText = tCitasGeneradas;
+            citasCalEl.innerText = tCitasCalendario;
+            document.getElementById('kpi-booking-rate').innerText = `${bookingRate}%`;
+            document.getElementById('kpi-cpa-cita').innerText = cpa_citas;
+        } else {
+            // Fallback por si la estructura HTML cambia en el futuro
+            kpiCards[4].querySelector('.metric-value').innerText = `${tCitasGeneradas} | ${tCitasCalendario}`;
+            kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa_citas}`;
+        }
         
         kpiCards[5].querySelector('.metric-value').innerText = tShows;
         kpiCards[5].querySelector('.metric-subtitle').innerText = `Asist. s/Calendario: ${showRate}%`;
