@@ -70,74 +70,91 @@ function getBusinessMinutes(dateStart, dateEnd) {
 function renderizarVistaGeneral(dataFiltrada) {
     const tLeads = dataFiltrada.leads.length;
     
-    // CORRECCIÓN EXACTA a =COUNTUNIQUE() usando la columna "Numero"
+    // 1. LEADS CONTACTADOS (Únicos por número)
     const leadsContactadosSet = new Set();
     dataFiltrada.contactados.forEach(c => {
-        let numeroUnico = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-        // Solo añadimos si el número no está vacío
-        if (numeroUnico !== '') leadsContactadosSet.add(numeroUnico);
+        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
+        if (num !== '') leadsContactadosSet.add(num);
     });
     const tContactados = leadsContactadosSet.size;
 
-    // Nueva Métrica: Llamadas Conectadas (Hoja 3)
-    const tLlamadasConectadas = dataFiltrada.llamadas.length;
+    // 2. LLAMADAS CONECTADAS (Únicos por número)
+    const llamadasConectadasSet = new Set();
+    dataFiltrada.llamadas.forEach(c => {
+        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
+        if (num !== '') llamadasConectadasSet.add(num);
+    });
+    const tLlamadasConectadas = llamadasConectadasSet.size;
     const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
 
-    const tCitas = dataFiltrada.citas.length;
-    const tShows = dataFiltrada.shows.length;
+    // 3. CITAS SEPARADAS (Nuevas vs Calendario)
+    // Filtramos para asegurar que no sean reprogramadas (usamos la columna "Tipo de cita" si existe)
+    const citasNuevas = dataFiltrada.citasGeneradas ? dataFiltrada.citasGeneradas.filter(c => {
+        let tipo = String(c['Tipo de cita'] || '').toLowerCase();
+        return !tipo.includes('reprogramada');
+    }) : [];
+    const tCitasGeneradas = citasNuevas.length;
+    const tCitasCalendario = dataFiltrada.citasCalendario ? dataFiltrada.citasCalendario.length : 0;
+
+    // 4. SHOWS TOTALES (Suma de Shows regulares + Shows NT)
+    const tShows = (dataFiltrada.shows ? dataFiltrada.shows.length : 0) + (dataFiltrada.showsNt ? dataFiltrada.showsNt.length : 0);
     
-    const ventas = dataFiltrada.shows.filter(item => {
+    // 5. VENTAS CERRADAS (Excluimos Shows NT y filtramos depósitos válidos solo de la hoja Shows normal)
+    const ventas = dataFiltrada.shows ? dataFiltrada.shows.filter(item => {
         const dep = (item['Deposito'] || '').toLowerCase().trim();
         return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
-    });
+    }) : [];
     const tVentas = ventas.length;
 
+    // Ratios del Embudo
     const contactRate = tLeads > 0 ? ((tContactados / tLeads) * 100).toFixed(1) : 0;
-    const bookingRate = tLeads > 0 ? ((tCitas / tLeads) * 100).toFixed(1) : 0;
-    const showRate = tCitas > 0 ? ((tShows / tCitas) * 100).toFixed(1) : 0;
+    const bookingRate = tLeads > 0 ? ((tCitasGeneradas / tLeads) * 100).toFixed(1) : 0;
+    const showRate = tCitasCalendario > 0 ? ((tShows / tCitasCalendario) * 100).toFixed(1) : 0;
     const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
+    // --- CÁLCULO DEL SPEED TO LEAD ---
     let stlMap = {}; 
     const globalTz = document.getElementById('global-timezone').value;
     const globalOffset = getTzOffsetMins(globalTz);
 
-    dataFiltrada.contactados.forEach(c => {
-        let id = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim(); 
-        if (id === '') return;
+    if (dataFiltrada.contactados) {
+        dataFiltrada.contactados.forEach(c => {
+            let id = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
+            if (id === '') return;
 
-        let cacheKey = '_stl_' + globalTz;
-        let bMinutes = c[cacheKey]; // Buscamos en caché
+            let cacheKey = '_stl_' + globalTz;
+            let bMinutes = c[cacheKey]; 
 
-        if (bMinutes === undefined) {
-            let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
-            let hEntrada = c['Hora Generado'] || c['Hora entrada'];
-            let fLlamada = c['Fecha 1er llamada'];
-            let hLlamada = c['Hora 1er llamada'];
-            let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
+            if (bMinutes === undefined) {
+                let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
+                let hEntrada = c['Hora Generado'] || c['Hora entrada'];
+                let fLlamada = c['Fecha 1er llamada'];
+                let hLlamada = c['Hora 1er llamada'];
+                let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
 
-            if (fEntrada && hEntrada && fLlamada && hLlamada) {
-                let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
-                let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
-                if (tEntrada && tLlamada) {
-                    let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-                    let timeE = parseTime(hEntrada); let timeL = parseTime(hLlamada);
-                    let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
-                    let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
-                    let diffMins = globalOffset - getTzOffsetMins(leadTz);
-                    dateE.setMinutes(dateE.getMinutes() + diffMins); dateL.setMinutes(dateL.getMinutes() + diffMins);
-                    
-                    bMinutes = getBusinessMinutes(dateE, dateL);
+                if (fEntrada && hEntrada && fLlamada && hLlamada) {
+                    let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
+                    let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
+                    if (tEntrada && tLlamada) {
+                        let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
+                        let timeE = parseTime(hEntrada); let timeL = parseTime(hLlamada);
+                        let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
+                        let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
+                        let diffMins = globalOffset - getTzOffsetMins(leadTz);
+                        dateE.setMinutes(dateE.getMinutes() + diffMins); dateL.setMinutes(dateL.getMinutes() + diffMins);
+                        
+                        bMinutes = getBusinessMinutes(dateE, dateL);
+                    } else { bMinutes = null; }
                 } else { bMinutes = null; }
-            } else { bMinutes = null; }
-            
-            c[cacheKey] = bMinutes; // Guardamos en la memoria temporal
-        }
+                
+                c[cacheKey] = bMinutes; 
+            }
 
-        // Si la llamada fue fuera de horario, bMinutes será null y SE IGNORA aquí (pero el lead sí contó arriba)
-        if (bMinutes !== null && (stlMap[id] === undefined || bMinutes < stlMap[id])) {
-            stlMap[id] = bMinutes;
-        }
-    });
+            if (bMinutes !== null && (stlMap[id] === undefined || bMinutes < stlMap[id])) {
+                stlMap[id] = bMinutes;
+            }
+        });
+    }
 
     let validStlCount = Object.keys(stlMap).length;
     let totalMinutes = Object.values(stlMap).reduce((a, b) => a + b, 0);
@@ -155,7 +172,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     }
 
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
-    const cpa = tCitas > 0 ? (inversionActual / tCitas).toFixed(2) : 0;
+    const cpa_citas = tCitasGeneradas > 0 ? (inversionActual / tCitasGeneradas).toFixed(2) : 0;
 
     // INYECCIÓN A LAS 7 TARJETAS
     const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
@@ -168,30 +185,30 @@ function renderizarVistaGeneral(dataFiltrada) {
         kpiCards[2].querySelector('.metric-value').innerText = tContactados;
         kpiCards[2].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
         
-        // La tarjeta NUEVA
         kpiCards[3].querySelector('.metric-value').innerText = tLlamadasConectadas;
         kpiCards[3].querySelector('.metric-subtitle').innerText = `Conectividad: ${conectividad}%`;
 
-        kpiCards[4].querySelector('.metric-value').innerText = tCitas;
-        kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa}`;
+        kpiCards[4].querySelector('.metric-value').innerText = tCitasGeneradas;
+        kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa_citas}`;
         
         kpiCards[5].querySelector('.metric-value').innerText = tShows;
-        kpiCards[5].querySelector('.metric-subtitle').innerText = `Asistencia: ${showRate}%`;
+        kpiCards[5].querySelector('.metric-subtitle').innerText = `Asist. s/Calendario: ${showRate}%`;
         
         kpiCards[6].querySelector('.metric-value').innerText = tVentas;
         kpiCards[6].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
     }
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
-    const progCitas = metas.citas > 0 ? (tCitas / metas.citas) * 100 : 0;
+    const progCitas = metas.citas > 0 ? (tCitasGeneradas / metas.citas) * 100 : 0;
     const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
     if(topCards.length >= 2) {
         topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${metas.ads.toLocaleString('en-US')}`;
         topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progAds, 100)}%`;
-        topCards[1].querySelector('.metric-value').innerText = `${tCitas} / ${metas.citas}`;
+        topCards[1].querySelector('.metric-value').innerText = `${tCitasGeneradas} / ${metas.citas}`;
         topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
     }
 
+    // DISTRIBUCIÓN DE PAGOS (Solo toma la variable 'ventas' válida)
     const paymentContainer = document.getElementById('payment-distribution-container');
     if (paymentContainer) {
         paymentContainer.innerHTML = ''; 
