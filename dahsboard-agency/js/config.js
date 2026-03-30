@@ -22,7 +22,7 @@ const DB_URLS = {
     cancelaCita: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1896787364&single=true&output=csv",
     
     // 4. Inversión (Meta Ads - Lo agregaremos después)
-    metaAds: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=1638252590&single=true&output=csv" 
+    metaAds: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSb25KgppbiMB-eyU2UaRRLMQmjzMVOOuqh0M2ov06kkhYyIrPMKjvjwPnZsHqlPeyXwc2px7ZzXuyC/pub?gid=2102838007&single=true&output=csv" 
 };
 
 // Objeto global donde vivirá toda nuestra data una vez descargada
