@@ -279,52 +279,50 @@
                     
                     <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--brand-primary);">
                         <div class="metric-title">Volumen de Leads</div>
-                        <div class="metric-value">0</div>
-                        <div class="metric-subtitle">CPL Estimado: $0.00</div>
+                        <div class="metric-value" id="kpi-leads">0</div>
+                        <div class="metric-subtitle" id="kpi-cpl">CPL Estimado: $0.00</div>
                     </div>
 
                     <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--accent-warning);">
                         <div class="metric-title">Speed To Lead Promedio</div>
-                        <div class="metric-value">0 min</div>
+                        <div class="metric-value" id="kpi-stl">0 min</div>
                         <div class="metric-subtitle">Tiempo de 1er contacto</div>
                     </div>
 
                     <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--accent-warning);">
                         <div class="metric-title">Leads Contactados</div>
-                        <div class="metric-value">0</div>
-                        <div class="metric-subtitle">Contact Rate: 0%</div>
+                        <div class="metric-value" id="kpi-contactados">0</div>
+                        <div class="metric-subtitle" id="kpi-contact-rate">Contact Rate: 0%</div>
                     </div>
 
                     <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid #bc13fe;">
                         <div class="metric-title">Llamadas Conectadas</div>
-                        <div class="metric-value">0</div>
-                        <div class="metric-subtitle">Conectividad: 0%</div>
+                        <div class="metric-value" id="kpi-llamadas">0</div>
+                        <div class="metric-subtitle" id="kpi-conectividad">Conectividad: 0%</div>
                     </div>
 
-                    <div class="kpi-card" style="flex: 1; min-width: 30%; border-top: 4px solid var(--brand-primary);">
-                        <div class="metric-title" style="text-align: center; margin-bottom: 10px;">Citas Generadas vs. Citas Calendario</div>
-                        <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 5px;">
-                            <div style="text-align: center;">
-                                <div class="metric-value" id="kpi-citas-gen">0</div>
-                            </div>
-                            <div style="color: var(--border-color); font-size: 2rem; font-weight: 300;">|</div>
-                            <div style="text-align: center;">
-                                <div class="metric-value" id="kpi-citas-cal" style="color: var(--accent-warning);">0</div>
-                            </div>
-                        </div>
-                        <div class="metric-subtitle" style="text-align: center;">Booking Rate: <span id="kpi-booking-rate">0%</span> <br> Costo x Cita: $<span id="kpi-cpa-cita">0.00</span></div>
+                    <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--brand-primary);">
+                        <div class="metric-title">Citas Generadas</div>
+                        <div class="metric-value" id="kpi-citas-gen">0</div>
+                        <div class="metric-subtitle">Booking Rate: <span id="kpi-booking-rate">0%</span> <br> Costo x Cita: $<span id="kpi-cpa-cita">0.00</span></div>
                     </div>
 
-                    <div class="kpi-card" style="flex: 1; min-width: 30%; border-top: 4px solid var(--accent-success); background: linear-gradient(180deg, rgba(55,202,55,0.05), transparent);">
+                    <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--accent-warning);">
+                        <div class="metric-title">Citas en Calendario</div>
+                        <div class="metric-value text-warning" id="kpi-citas-cal">0</div>
+                        <div class="metric-subtitle">Para el rango seleccionado</div>
+                    </div>
+
+                    <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--accent-success); background: linear-gradient(180deg, rgba(55,202,55,0.05), transparent);">
                         <div class="metric-title text-success">Shows Totales</div>
-                        <div class="metric-value text-success">0</div>
-                        <div class="metric-subtitle">Asistencia: 0%</div>
+                        <div class="metric-value text-success" id="kpi-shows">0</div>
+                        <div class="metric-subtitle" id="kpi-show-rate">Asistencia: 0%</div>
                     </div>
 
-                    <div class="kpi-card" style="flex: 1; min-width: 30%; border-top: 4px solid var(--accent-success); background: linear-gradient(180deg, rgba(55,202,55,0.05), transparent);">
+                    <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--accent-success); background: linear-gradient(180deg, rgba(55,202,55,0.05), transparent);">
                         <div class="metric-title text-success">Ventas Cerradas</div>
-                        <div class="metric-value text-success">0</div>
-                        <div class="metric-subtitle">Win Rate: 0%</div>
+                        <div class="metric-value text-success" id="kpi-ventas">0</div>
+                        <div class="metric-subtitle" id="kpi-win-rate">Win Rate: 0%</div>
                     </div>
                 </div>
 
