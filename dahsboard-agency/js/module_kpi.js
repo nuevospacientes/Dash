@@ -171,8 +171,11 @@ function renderizarVistaGeneral(dataFiltrada) {
         });
     }
 
+    // --- CÁLCULOS FINANCIEROS (CPA) ---
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
     const cpa_citas = tCitasGeneradas > 0 ? (inversionActual / tCitasGeneradas).toFixed(2) : 0;
+    const cpa_citas_cal = tCitasCalendario > 0 ? (inversionActual / tCitasCalendario).toFixed(2) : 0;
+    const costo_venta = tVentas > 0 ? (inversionActual / tVentas).toFixed(2) : 0;
 
     // --- INYECCIÓN A LAS 8 TARJETAS SEPARADAS Y EVENTOS DE CLIC ---
     const setMetric = (id, val, subtitleId, subtitleVal, clickData, clickTitle, clickDateCol) => {
@@ -190,20 +193,25 @@ function renderizarVistaGeneral(dataFiltrada) {
         }
     };
 
+    // Inyección de Data y Fórmulas Modificadas a la Vista
     setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, dataFiltrada.leads, 'Volumen de Leads', 'Fecha Entrada');
-    setMetric('kpi-stl', stlDisplay, null, null, null, null, null); // STL no es lista
+    setMetric('kpi-stl', stlDisplay, null, null, null, null, null);
     setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
     setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
     
-    // Citas separadas con modales independientes
+    // Citas Generadas (Solo Booking Rate y CPA Citas)
     setMetric('kpi-citas-gen', tCitasGeneradas, null, null, citasNuevas, 'Citas Generadas (Nuevas)', 'Fecha Creación');
     const brEl = document.getElementById('kpi-booking-rate'); if(brEl) brEl.innerText = `${bookingRate}%`;
     const cpaEl = document.getElementById('kpi-cpa-cita'); if(cpaEl) cpaEl.innerText = cpa_citas;
 
-    setMetric('kpi-citas-cal', tCitasCalendario, null, null, dataFiltrada.citasCalendario, 'Citas en Calendario', 'Fecha Programada');
+    // Citas en Calendario (Muestra el Costo x Cita en Calendario)
+    setMetric('kpi-citas-cal', tCitasCalendario, 'kpi-subtitle-citas-cal', `Costo x Cita (Cal): $${cpa_citas_cal}`, dataFiltrada.citasCalendario, 'Citas en Calendario', 'Fecha Programada');
     
-    setMetric('kpi-shows', tShows, 'kpi-show-rate', `Asistencia s/Calendario: ${showRate}%`, todosLosShows, 'Shows y Asistencias', 'Fecha Visita');
-    setMetric('kpi-ventas', tVentas, 'kpi-win-rate', `Win Rate: ${winRate}%`, ventas, 'Ventas Cerradas', 'Fecha Visita');
+    // Shows (Muestra el Show Rate vs Citas Calendario)
+    setMetric('kpi-shows', tShows, 'kpi-show-rate', `Show Rate: ${showRate}%`, todosLosShows, 'Shows y Asistencias', 'Fecha Visita');
+    
+    // Ventas (Muestra Win Rate y Costo por Venta)
+    setMetric('kpi-ventas', tVentas, 'kpi-win-rate', `Win Rate: ${winRate}% <br> Costo x Venta: $${costo_venta}`, ventas, 'Ventas Cerradas', 'Fecha Visita');
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
     const progCitas = metas.citas > 0 ? (tCitasGeneradas / metas.citas) * 100 : 0;
@@ -286,7 +294,7 @@ window.abrirModalLista = function(titulo, lista, tituloColFecha) {
     } else {
         lista.forEach(v => {
             // Buscamos la fecha en cualquiera de los formatos comunes de tus hojas
-            let fecha = v['Fecha entrada lead'] || v['Fecha Lead entra'] || v['Fecha 1er llamada'] || v['Fecha last call'] || v['Cita generada'] || v['Fecha Visita'] || '-';
+            let fecha = v['Fecha entrada lead'] || v['Fecha Lead entra'] || v['Fecha 1er llamada'] || v['Fecha last call'] || v['Cita generada'] || v['Fecha Visita'] || v['Cita Programada en'] || '-';
             let nombre = v['Nombre'] || v['First Name'] || v['Lead Name'] || 'Desconocido';
             let telefono = v['Numero'] || v['Teléfono'] || v['Telefono'] || v['Phone'] || v['Número'] || '-';
             let campana = v['Campaña'] || '-';
