@@ -174,58 +174,36 @@ function renderizarVistaGeneral(dataFiltrada) {
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
     const cpa_citas = tCitasGeneradas > 0 ? (inversionActual / tCitasGeneradas).toFixed(2) : 0;
 
-    // INYECCIÓN A LAS 7 TARJETAS Y EVENTOS DE CLIC
-    const kpiCards = document.querySelectorAll('#kpi-container-general .kpi-card');
-    if(kpiCards.length >= 7) {
-        
-        // 1. Leads
-        kpiCards[0].querySelector('.metric-value').innerText = tLeads;
-        kpiCards[0].querySelector('.metric-subtitle').innerText = `CPL Estimado: $${cpl}`;
-        kpiCards[0].classList.add('clickable-card');
-        kpiCards[0].onclick = () => window.abrirModalLista('Volumen de Leads', dataFiltrada.leads, 'Fecha Entrada');
-        
-        // 2. Speed To Lead (No es lista directa)
-        kpiCards[1].querySelector('.metric-value').innerText = stlDisplay;
-        
-        // 3. Contactados
-        kpiCards[2].querySelector('.metric-value').innerText = tContactados;
-        kpiCards[2].querySelector('.metric-subtitle').innerText = `Contact Rate: ${contactRate}%`;
-        kpiCards[2].classList.add('clickable-card');
-        kpiCards[2].onclick = () => window.abrirModalLista('Leads Contactados', leadsContactadosList, 'Fecha 1er Llamada');
-        
-        // 4. Llamadas Conectadas
-        kpiCards[3].querySelector('.metric-value').innerText = tLlamadasConectadas;
-        kpiCards[3].querySelector('.metric-subtitle').innerText = `Conectividad: ${conectividad}%`;
-        kpiCards[3].classList.add('clickable-card');
-        kpiCards[3].onclick = () => window.abrirModalLista('Llamadas Conectadas', llamadasConectadasList, 'Fecha Llamada');
-
-        // 5. Citas
-        const citasGenEl = document.getElementById('kpi-citas-gen');
-        const citasCalEl = document.getElementById('kpi-citas-cal');
-        if(citasGenEl && citasCalEl) {
-            citasGenEl.innerText = tCitasGeneradas;
-            citasCalEl.innerText = tCitasCalendario;
-            document.getElementById('kpi-booking-rate').innerText = `${bookingRate}%`;
-            document.getElementById('kpi-cpa-cita').innerText = cpa_citas;
-        } else {
-            kpiCards[4].querySelector('.metric-value').innerText = `${tCitasGeneradas} | ${tCitasCalendario}`;
-            kpiCards[4].querySelector('.metric-subtitle').innerHTML = `Booking Rate: ${bookingRate}% <br> Costo x Cita: $${cpa_citas}`;
+    // --- INYECCIÓN A LAS 8 TARJETAS SEPARADAS Y EVENTOS DE CLIC ---
+    const setMetric = (id, val, subtitleId, subtitleVal, clickData, clickTitle, clickDateCol) => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.innerText = val;
+            if(subtitleId && subtitleVal) document.getElementById(subtitleId).innerHTML = subtitleVal;
+            if(clickData) {
+                const card = el.closest('.kpi-card');
+                if(card) {
+                    card.classList.add('clickable-card');
+                    card.onclick = () => window.abrirModalLista(clickTitle, clickData, clickDateCol);
+                }
+            }
         }
-        kpiCards[4].classList.add('clickable-card');
-        kpiCards[4].onclick = () => window.abrirModalLista('Citas Generadas (Nuevas)', citasNuevas, 'Fecha Cita');
-        
-        // 6. Shows Totales
-        kpiCards[5].querySelector('.metric-value').innerText = tShows;
-        kpiCards[5].querySelector('.metric-subtitle').innerText = `Asist. s/Calendario: ${showRate}%`;
-        kpiCards[5].classList.add('clickable-card');
-        kpiCards[5].onclick = () => window.abrirModalLista('Shows y Asistencias', todosLosShows, 'Fecha Visita');
-        
-        // 7. Ventas Cerradas
-        kpiCards[6].querySelector('.metric-value').innerText = tVentas;
-        kpiCards[6].querySelector('.metric-subtitle').innerText = `Win Rate: ${winRate}%`;
-        kpiCards[6].classList.add('clickable-card');
-        kpiCards[6].onclick = () => window.abrirModalLista('Ventas Cerradas', ventas, 'Fecha Visita');
-    }
+    };
+
+    setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, dataFiltrada.leads, 'Volumen de Leads', 'Fecha Entrada');
+    setMetric('kpi-stl', stlDisplay, null, null, null, null, null); // STL no es lista
+    setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
+    setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
+    
+    // Citas separadas con modales independientes
+    setMetric('kpi-citas-gen', tCitasGeneradas, null, null, citasNuevas, 'Citas Generadas (Nuevas)', 'Fecha Creación');
+    const brEl = document.getElementById('kpi-booking-rate'); if(brEl) brEl.innerText = `${bookingRate}%`;
+    const cpaEl = document.getElementById('kpi-cpa-cita'); if(cpaEl) cpaEl.innerText = cpa_citas;
+
+    setMetric('kpi-citas-cal', tCitasCalendario, null, null, dataFiltrada.citasCalendario, 'Citas en Calendario', 'Fecha Programada');
+    
+    setMetric('kpi-shows', tShows, 'kpi-show-rate', `Asistencia s/Calendario: ${showRate}%`, todosLosShows, 'Shows y Asistencias', 'Fecha Visita');
+    setMetric('kpi-ventas', tVentas, 'kpi-win-rate', `Win Rate: ${winRate}%`, ventas, 'Ventas Cerradas', 'Fecha Visita');
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
     const progCitas = metas.citas > 0 ? (tCitasGeneradas / metas.citas) * 100 : 0;
