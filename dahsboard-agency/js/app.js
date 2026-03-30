@@ -370,8 +370,9 @@ function procesarYRenderizar() {
     const dataFiltrada = {
         leads: window.AppData.raw.leads.filter(r => cumpleFiltroFinal(r, 'Fecha entrada lead', false)),
         
+        // Usar Last Call para la atribución correcta de seguimiento
         contactados: window.AppData.raw.contactados.filter(r => {
-            let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
+            let colDate = r['Fecha last call'] ? 'Fecha last call' : (r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : 'Fecha Lead entra');
             return cumpleFiltroFinal(r, colDate, false);
         }), 
         
