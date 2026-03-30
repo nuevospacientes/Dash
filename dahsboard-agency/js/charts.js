@@ -72,6 +72,7 @@ function renderizarGraficos(dataFiltrada) {
         array.forEach(item => {
             if (filterFn && !filterFn(item)) return;
             let rawDate = item[propFecha];
+            if (!rawDate && propFecha === 'Fecha last call') rawDate = item['Fecha 1er llamada'] || item['Fecha entrada lead'];
             if (!rawDate) return;
             let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item, propFecha) : new Date(rawDate);
             if (d && !isNaN(new Date(d).getTime())) {
@@ -94,12 +95,13 @@ function renderizarGraficos(dataFiltrada) {
     };
 
     agruparPorFecha(leads, 'Fecha entrada lead', 'leads'); 
-    agruparPorFecha(contactadosFiltrados, 'Fecha 1er llamada', 'contactados');
+    agruparPorFecha(contactadosFiltrados, 'Fecha last call', 'contactados'); 
+    agruparPorFecha(contactadosFiltrados, 'Fecha last call', 'stl');
     agruparPorFecha(llamadas, 'Fecha last call', 'llamadas'); 
     agruparPorFecha(citas, 'Cita generada', 'citas'); 
     agruparPorFecha(shows, 'Fecha Visita', 'shows');
     agruparPorFecha(shows, 'Fecha Visita', 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
-    agruparPorFecha(contactadosFiltrados, 'Fecha 1er llamada', 'stl');
+    
 
     let labelsFechas = Object.keys(timeline).sort();
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
