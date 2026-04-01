@@ -413,9 +413,10 @@
                 <div style="display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px;">
                     <div class="kpi-card" style="height: 480px; display: flex; flex-direction: column; position: relative;">
                         
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 15px;">
+                            
                             <div style="display: flex; flex-direction: column; gap: 10px;">
-                                <h3 class="chart-title" style="flex-shrink: 0; margin-bottom: 0;">Dinámica (Volumen Contactados vs Speed to Lead)</h3>
+                                <h3 class="chart-title" style="flex-shrink: 0; margin-bottom: 0;">Dinámica (En Tiempo Real vs Histórico)</h3>
                                 
                                 <div style="display: flex; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); width: fit-content;">
                                     <button onclick="switchDynamicTab('hoy')" id="btn-tab-hoy" style="padding: 6px 15px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; cursor: pointer; transition: 0.3s; background: var(--brand-primary); color: #fff; border: none;">⏳ Hoy (Por Hora)</button>
@@ -423,9 +424,40 @@
                                 </div>
                             </div>
 
-                            <span id="chart-dynamic-label" style="background: var(--bg-input); padding: 6px 15px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: var(--accent-warning); border: 1px solid var(--border-color);">
-                                Cargando...
-                            </span>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+                                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                    <div style="display: flex; align-items: center; gap: 5px;">
+                                        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--brand-primary);"></div>
+                                        <select id="grafico-dinamico-m1" class="filter-select" style="padding: 6px 10px; font-size: 0.85rem;" onchange="if(window.updateBottomChart) window.updateBottomChart()">
+                                            <option value="leads">Volumen de Leads</option>
+                                            <option value="contactados" selected>Contactados Únicos</option>
+                                            <option value="llamadas">Llamadas Conectadas</option>
+                                            <option value="citas">Citas Agendadas</option>
+                                            <option value="shows">Asistencias (Shows)</option>
+                                            <option value="ventas">Ventas Cerradas</option>
+                                            <option value="stl">Speed to Lead Promedio</option>
+                                        </select>
+                                    </div>
+                                    <span style="color: var(--text-muted);">vs</span>
+                                    <div style="display: flex; align-items: center; gap: 5px;">
+                                        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--accent-warning);"></div>
+                                        <select id="grafico-dinamico-m2" class="filter-select" style="padding: 6px 10px; font-size: 0.85rem;" onchange="if(window.updateBottomChart) window.updateBottomChart()">
+                                            <option value="leads">Volumen de Leads</option>
+                                            <option value="contactados">Contactados Únicos</option>
+                                            <option value="llamadas">Llamadas Conectadas</option>
+                                            <option value="citas">Citas Agendadas</option>
+                                            <option value="shows">Asistencias (Shows)</option>
+                                            <option value="ventas">Ventas Cerradas</option>
+                                            <option value="stl" selected>Speed to Lead Promedio</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <span id="chart-dynamic-label" style="background: var(--bg-input); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: var(--accent-warning); border: 1px solid var(--border-color);">
+                                    Cargando...
+                                </span>
+                            </div>
+
+                        </div>
                         </div>
 
                         <div id="wrapper-chart-hoy" style="position: relative; flex-grow: 1; width: 100%;">
