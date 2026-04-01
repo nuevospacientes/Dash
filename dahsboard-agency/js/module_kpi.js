@@ -99,11 +99,8 @@ function renderizarVistaGeneral(dataFiltrada) {
     const todosLosShows = [...(dataFiltrada.shows || []), ...(dataFiltrada.showsNt || [])];
     const tShows = todosLosShows.length;
     
-    // 5. VENTAS CERRADAS 
-    const ventas = dataFiltrada.shows ? dataFiltrada.shows.filter(item => {
-        const dep = (item['Deposito'] || '').toLowerCase().trim();
-        return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
-    }) : [];
+    // 5. VENTAS CERRADAS (Ahora sumamos toda la hoja de Shows validando la data)
+    const ventas = dataFiltrada.shows || [];
     const tVentas = ventas.length;
 
     // Ratios del Embudo
@@ -193,24 +190,19 @@ function renderizarVistaGeneral(dataFiltrada) {
         }
     };
 
-    // Inyección de Data y Fórmulas Modificadas a la Vista
     setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, dataFiltrada.leads, 'Volumen de Leads', 'Fecha Entrada');
     setMetric('kpi-stl', stlDisplay, null, null, null, null, null);
     setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
     setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
     
-    // Citas Generadas (Solo Booking Rate y CPA Citas)
     setMetric('kpi-citas-gen', tCitasGeneradas, null, null, citasNuevas, 'Citas Generadas (Nuevas)', 'Fecha Creación');
     const brEl = document.getElementById('kpi-booking-rate'); if(brEl) brEl.innerText = `${bookingRate}%`;
     const cpaEl = document.getElementById('kpi-cpa-cita'); if(cpaEl) cpaEl.innerText = cpa_citas;
 
-    // Citas en Calendario (Muestra el Costo x Cita en Calendario)
     setMetric('kpi-citas-cal', tCitasCalendario, 'kpi-subtitle-citas-cal', `Costo x Cita (Cal): $${cpa_citas_cal}`, dataFiltrada.citasCalendario, 'Citas en Calendario', 'Fecha Programada');
     
-    // Shows (Muestra el Show Rate vs Citas Calendario)
     setMetric('kpi-shows', tShows, 'kpi-show-rate', `Show Rate: ${showRate}%`, todosLosShows, 'Shows y Asistencias', 'Fecha Visita');
     
-    // Ventas (Muestra Win Rate y Costo por Venta)
     setMetric('kpi-ventas', tVentas, 'kpi-win-rate', `Win Rate: ${winRate}% <br> Costo x Venta: $${costo_venta}`, ventas, 'Ventas Cerradas', 'Fecha Visita');
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
@@ -223,7 +215,7 @@ function renderizarVistaGeneral(dataFiltrada) {
         topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
     }
 
-    // DISTRIBUCIÓN DE PAGOS 
+    // DISTRIBUCIÓN DE PAGOS (Con Atribución "Sin Depósito")
     const paymentContainer = document.getElementById('payment-distribution-container');
     if (paymentContainer) {
         paymentContainer.innerHTML = ''; 
@@ -236,12 +228,22 @@ function renderizarVistaGeneral(dataFiltrada) {
                 let mLower = metodoRaw.toLowerCase();
                 let metodoFinal = metodoRaw;
 
-                if (mLower.includes('transferencia')) metodoFinal = 'Transferencia';
-                else if (mLower.includes('link')) metodoFinal = 'Link de Pago';
-                else if (mLower.includes('tarjeta')) metodoFinal = 'Tarjeta';
-                else if (mLower.includes('efectivo')) metodoFinal = 'Efectivo';
-                else if (mLower.includes('financiamiento') || mLower.includes('cuota')) metodoFinal = 'Financiamiento';
-                else if (metodoRaw !== '') metodoFinal = metodoRaw.charAt(0).toUpperCase() + metodoRaw.slice(1);
+                // Nueva regla para agrupar a los que pagan en clínica
+                if (mLower === '' || mLower.includes('sin deposito') || mLower.includes('sin depósito')) {
+                    metodoFinal = 'Sin Depósito (Pago en Clínica)';
+                } else if (mLower.includes('transferencia')) {
+                    metodoFinal = 'Transferencia';
+                } else if (mLower.includes('link')) {
+                    metodoFinal = 'Link de Pago';
+                } else if (mLower.includes('tarjeta')) {
+                    metodoFinal = 'Tarjeta';
+                } else if (mLower.includes('efectivo')) {
+                    metodoFinal = 'Efectivo';
+                } else if (mLower.includes('financiamiento') || mLower.includes('cuota')) {
+                    metodoFinal = 'Financiamiento';
+                } else {
+                    metodoFinal = metodoRaw.charAt(0).toUpperCase() + metodoRaw.slice(1);
+                }
 
                 if (!metodosAgrupados[metodoFinal]) metodosAgrupados[metodoFinal] = [];
                 metodosAgrupados[metodoFinal].push(v);
