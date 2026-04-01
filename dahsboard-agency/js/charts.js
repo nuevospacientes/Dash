@@ -2,10 +2,12 @@
    GRÁFICOS VISUALES E INTERACTIVOS (NIVEL DIOS)
    ========================================== */
 
-let chartTendenciaDinamica = null; 
-let chartHorasHoy = null; 
-let chartHistoricoDias = null; 
+let chartTendencia = null; // Gráfico Clásico 6 líneas
+let chartTendenciaDinamica = null; // Gráfico Interactivo Medio
+let chartHorasHoy = null; // Gráfico Inferior (Horas)
+let chartHistoricoDias = null; // Gráfico Inferior (Días)
 let chartPagosDona = null;
+
 let currentDynamicLabelHoy = ""; 
 let currentDynamicLabelHist = ""; 
 let activeDynamicTab = "hoy"; 
@@ -65,7 +67,7 @@ function renderizarGraficos(dataFiltrada) {
     const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
-    // MAGIA DE UX: ¿Es un solo día? Si la diferencia es <= 24h, desglosamos por horas.
+    // MAGIA DE UX: ¿Es un solo día? Si la diferencia es <= 24h, desglosamos por horas en los de arriba.
     const isSingleDay = start !== null && end !== null && (end - start) <= 86400000;
 
     const METRIC_CONFIG = {
@@ -78,7 +80,7 @@ function renderizarGraficos(dataFiltrada) {
         'stl': { label: 'Speed to Lead (Min)', color: '#bc13fe', isReverse: true }
     };
 
-    // Inyectar métricas custom a TODOS los selects (Gráfico Top y Gráfico Bottom)
+    // Inyectar métricas custom a TODOS los selects (Gráfico Medio y Gráfico Inferior)
     const customMetrics = JSON.parse(localStorage.getItem('np_chart_custom_metrics')) || {};
     const syncSelect = (id) => {
         const sel = document.getElementById(id);
@@ -94,7 +96,7 @@ function renderizarGraficos(dataFiltrada) {
     };
     ['grafico-metrica-1', 'grafico-metrica-2', 'grafico-dinamico-m1', 'grafico-dinamico-m2'].forEach(syncSelect);
 
-    // EXTRACCIÓN MATEMÁTICA UNIVERSAL
+    // EXTRACCIÓN MATEMÁTICA UNIVERSAL (Para Fórmulas Custom)
     const extractMetricValue = (obj, metricKey) => {
         if (!obj) return 0;
         if (metricKey === 'stl') return obj.stlCount > 0 ? Math.round(obj.stlSum / obj.stlCount) : 0;
@@ -112,7 +114,7 @@ function renderizarGraficos(dataFiltrada) {
     };
 
     // =========================================================================
-    // 1. GRÁFICO SUPERIOR (TENDENCIA INTERACTIVA: DÍAS vs HORAS)
+    // 1. GRÁFICOS SUPERIORES (FILTRADOS)
     // =========================================================================
     let timelineTop = {};
     if (isSingleDay) { for(let i=0; i<24; i++) timelineTop[i] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 }; }
@@ -131,7 +133,7 @@ function renderizarGraficos(dataFiltrada) {
                 dateObj.setMinutes(dateObj.getMinutes() + (globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(item['Zona Horaria'] || item['Zona horaria'] || globalTz) : 0)));
                 
                 let t = dateObj.getTime();
-                if (start !== null && end !== null && (t < start || t >= end)) return;
+                if (start !== null && end !== null && (t < start || t >= end)) return; // SOLO ACEPTAMOS DATA DENTRO DEL RANGO
 
                 if (isSingleDay) {
                     let h = dateObj.getHours();
@@ -165,18 +167,43 @@ function renderizarGraficos(dataFiltrada) {
     let topKeys = isSingleDay ? Array.from({length: 24}, (_, i) => i) : Object.keys(timelineTop).sort();
     let topLabelsX = isSingleDay ? Array.from({length: 24}, (_, i) => `${i}:00`) : topKeys.map(f => new Date(f + 'T00:00:00').getDate().toString());
 
-    // Actualizar etiqueta visual de fechas
+    // Etiquetas Visuales (Labels)
     if (!isSingleDay && topKeys.length > 0) {
         let firstD = new Date(topKeys[0] + 'T00:00:00'), lastD = new Date(topKeys[topKeys.length - 1] + 'T00:00:00');
+        let labelTextClass = (firstD.getMonth() === lastD.getMonth() && firstD.getFullYear() === lastD.getFullYear()) ? `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()}` : `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()} - ${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
         const formatShort = (d) => `${String(d.getDate()).padStart(2, '0')}-${monthNames[d.getMonth()].toLowerCase()}`;
         let labelTextDin = (firstD.getTime() === lastD.getTime()) ? formatShort(firstD) : `${formatShort(firstD)} al ${formatShort(lastD)}`;
+        
+        const labelElClas = document.getElementById('chart-month-year-label'); if (labelElClas) labelElClas.innerText = labelTextClass;
         const labelElDin = document.getElementById('chart-dynamic-date-label'); if (labelElDin) labelElDin.innerText = labelTextDin;
     } else if (isSingleDay && start !== null) {
         let sd = new Date(start);
-        const labelElDin = document.getElementById('chart-dynamic-date-label'); 
-        if (labelElDin) labelElDin.innerText = `${String(sd.getDate()).padStart(2, '0')}-${monthNames[sd.getMonth()].toLowerCase()} (Por Horas)`;
+        const labelStr = `${String(sd.getDate()).padStart(2, '0')}-${monthNames[sd.getMonth()].toLowerCase()} (Por Horas)`;
+        const labelElClas = document.getElementById('chart-month-year-label'); if (labelElClas) labelElClas.innerText = labelStr;
+        const labelElDin = document.getElementById('chart-dynamic-date-label'); if (labelElDin) labelElDin.innerText = labelStr;
     }
 
+    // PINTAR GRÁFICO 1: TENDENCIA CLÁSICA (LAS 6 LÍNEAS)
+    const ctxTendencia = document.getElementById('chart-tendencia');
+    if (ctxTendencia) {
+        if (chartTendencia) chartTendencia.destroy();
+        chartTendencia = new Chart(ctxTendencia, {
+            type: 'line',
+            data: {
+                labels: topLabelsX,
+                datasets: [
+                    { label: 'Leads', data: topKeys.map(k => timelineTop[k].leads), borderColor: '#3b6bfa', backgroundColor: '#3b6bfa', tension: 0.4 },
+                    { label: 'Contactados', data: topKeys.map(k => timelineTop[k].contactados), borderColor: '#f6ad55', backgroundColor: '#f6ad55', tension: 0.4 },
+                    { label: 'Llamadas', data: topKeys.map(k => timelineTop[k].llamadas), borderColor: '#9f7aea', backgroundColor: '#9f7aea', tension: 0.4 },
+                    { label: 'Citas', data: topKeys.map(k => timelineTop[k].citas), borderColor: '#37ca37', backgroundColor: '#37ca37', tension: 0.4 },
+                    { label: 'Shows', data: topKeys.map(k => timelineTop[k].shows), borderColor: '#fbbf24', backgroundColor: '#fbbf24', tension: 0.4 },
+                    { label: 'Ventas', data: topKeys.map(k => timelineTop[k].ventas), borderColor: '#e93d3d', backgroundColor: '#e93d3d', tension: 0.4, borderWidth: 3 }
+                ]
+            }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    // PINTAR GRÁFICO 2: TENDENCIA INTERACTIVA
     window.updateDynamicChart = function() {
         const ctxDinamica = document.getElementById('chart-tendencia-dinamica');
         if(!ctxDinamica) return;
@@ -247,7 +274,7 @@ function renderizarGraficos(dataFiltrada) {
         });
     };
 
-    // Para el gráfico inferior usamos la data cruda SIN filtro de fecha global
+    // Para el gráfico inferior usamos la data cruda SIN filtro de fecha global (HISTÓRICO ABSOLUTO)
     if (window.AppData && window.AppData.raw) {
         agruparBottom(window.AppData.raw.leads, 'Fecha entrada lead', 'leads');
         agruparBottom(window.AppData.raw.contactados, 'Fecha last call', 'contactados');
