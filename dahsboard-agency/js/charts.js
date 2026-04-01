@@ -2,12 +2,11 @@
    GRÁFICOS VISUALES E INTERACTIVOS (NIVEL DIOS)
    ========================================== */
 
-let chartTendencia = null; // Gráfico Clásico 6 líneas
-let chartTendenciaDinamica = null; // Gráfico Interactivo Medio
-let chartHorasHoy = null; // Gráfico Inferior (Horas)
-let chartHistoricoDias = null; // Gráfico Inferior (Días)
+let chartTendencia = null; 
+let chartTendenciaDinamica = null; 
+let chartHorasHoy = null; 
+let chartHistoricoDias = null; 
 let chartPagosDona = null;
-
 let currentDynamicLabelHoy = ""; 
 let currentDynamicLabelHist = ""; 
 let activeDynamicTab = "hoy"; 
@@ -33,7 +32,6 @@ window.switchDynamicTab = function(tab) {
     }
 };
 
-// --- LOGICA DE MÉTRICAS PERSONALIZADAS ---
 window.insertChartVar = function(v) {
     const input = document.getElementById('chart-custom-formula');
     if(input) { input.value += v; input.focus(); }
@@ -42,7 +40,6 @@ window.insertChartVar = function(v) {
 window.guardarCustomChartMetric = function() {
     const name = document.getElementById('chart-custom-name').value.trim();
     const formula = document.getElementById('chart-custom-formula').value.trim();
-    
     if (!name || !formula) { alert("Ingresa un nombre y una fórmula."); return; }
     
     let customMetrics = JSON.parse(localStorage.getItem('np_chart_custom_metrics')) || {};
@@ -67,7 +64,6 @@ function renderizarGraficos(dataFiltrada) {
     const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
-    // MAGIA DE UX: ¿Es un solo día? Si la diferencia es <= 24h, desglosamos por horas en los de arriba.
     const isSingleDay = start !== null && end !== null && (end - start) <= 86400000;
 
     const METRIC_CONFIG = {
@@ -80,7 +76,6 @@ function renderizarGraficos(dataFiltrada) {
         'stl': { label: 'Speed to Lead (Min)', color: '#bc13fe', isReverse: true }
     };
 
-    // Inyectar métricas custom a TODOS los selects (Gráfico Medio y Gráfico Inferior)
     const customMetrics = JSON.parse(localStorage.getItem('np_chart_custom_metrics')) || {};
     const syncSelect = (id) => {
         const sel = document.getElementById(id);
@@ -96,7 +91,6 @@ function renderizarGraficos(dataFiltrada) {
     };
     ['grafico-metrica-1', 'grafico-metrica-2', 'grafico-dinamico-m1', 'grafico-dinamico-m2'].forEach(syncSelect);
 
-    // EXTRACCIÓN MATEMÁTICA UNIVERSAL (Para Fórmulas Custom)
     const extractMetricValue = (obj, metricKey) => {
         if (!obj) return 0;
         if (metricKey === 'stl') return obj.stlCount > 0 ? Math.round(obj.stlSum / obj.stlCount) : 0;
@@ -114,7 +108,7 @@ function renderizarGraficos(dataFiltrada) {
     };
 
     // =========================================================================
-    // 1. GRÁFICOS SUPERIORES (FILTRADOS)
+    // GRÁFICOS 1 y 2 (SUPERIORES - FILTRADOS)
     // =========================================================================
     let timelineTop = {};
     if (isSingleDay) { for(let i=0; i<24; i++) timelineTop[i] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 }; }
@@ -133,7 +127,7 @@ function renderizarGraficos(dataFiltrada) {
                 dateObj.setMinutes(dateObj.getMinutes() + (globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(item['Zona Horaria'] || item['Zona horaria'] || globalTz) : 0)));
                 
                 let t = dateObj.getTime();
-                if (start !== null && end !== null && (t < start || t >= end)) return; // SOLO ACEPTAMOS DATA DENTRO DEL RANGO
+                if (start !== null && end !== null && (t < start || t >= end)) return;
 
                 if (isSingleDay) {
                     let h = dateObj.getHours();
@@ -167,7 +161,6 @@ function renderizarGraficos(dataFiltrada) {
     let topKeys = isSingleDay ? Array.from({length: 24}, (_, i) => i) : Object.keys(timelineTop).sort();
     let topLabelsX = isSingleDay ? Array.from({length: 24}, (_, i) => `${i}:00`) : topKeys.map(f => new Date(f + 'T00:00:00').getDate().toString());
 
-    // Etiquetas Visuales (Labels)
     if (!isSingleDay && topKeys.length > 0) {
         let firstD = new Date(topKeys[0] + 'T00:00:00'), lastD = new Date(topKeys[topKeys.length - 1] + 'T00:00:00');
         let labelTextClass = (firstD.getMonth() === lastD.getMonth() && firstD.getFullYear() === lastD.getFullYear()) ? `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()}` : `${monthNames[firstD.getMonth()]} ${firstD.getFullYear()} - ${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
@@ -183,7 +176,7 @@ function renderizarGraficos(dataFiltrada) {
         const labelElDin = document.getElementById('chart-dynamic-date-label'); if (labelElDin) labelElDin.innerText = labelStr;
     }
 
-    // PINTAR GRÁFICO 1: TENDENCIA CLÁSICA (LAS 6 LÍNEAS)
+    // 1. Gráfico Clásico
     const ctxTendencia = document.getElementById('chart-tendencia');
     if (ctxTendencia) {
         if (chartTendencia) chartTendencia.destroy();
@@ -203,7 +196,7 @@ function renderizarGraficos(dataFiltrada) {
         });
     }
 
-    // PINTAR GRÁFICO 2: TENDENCIA INTERACTIVA
+    // 2. Gráfico Interactivo
     window.updateDynamicChart = function() {
         const ctxDinamica = document.getElementById('chart-tendencia-dinamica');
         if(!ctxDinamica) return;
@@ -227,7 +220,7 @@ function renderizarGraficos(dataFiltrada) {
     window.updateDynamicChart();
 
     // =========================================================================
-    // 2. GRÁFICO INFERIOR (DINÁMICA: HOY vs HISTÓRICO GLOBAL)
+    // 3. GRÁFICOS INFERIORES (DINÁMICA: HOY vs HISTÓRICO GLOBAL SIN FILTRO FECHA)
     // =========================================================================
     const campaignSelected = document.getElementById('global-campaign-filter') ? document.getElementById('global-campaign-filter').value : 'all';
     const operatorSelected = document.getElementById('global-operator-filter') ? document.getElementById('global-operator-filter').value : 'all';
@@ -274,7 +267,6 @@ function renderizarGraficos(dataFiltrada) {
         });
     };
 
-    // Para el gráfico inferior usamos la data cruda SIN filtro de fecha global (HISTÓRICO ABSOLUTO)
     if (window.AppData && window.AppData.raw) {
         agruparBottom(window.AppData.raw.leads, 'Fecha entrada lead', 'leads');
         agruparBottom(window.AppData.raw.contactados, 'Fecha last call', 'contactados');
@@ -332,7 +324,7 @@ function renderizarGraficos(dataFiltrada) {
     };
     window.updateBottomChart();
 
-    // 3. DISTRIBUCIÓN DE PAGOS (Intacto)
+    // 4. DISTRIBUCIÓN DE PAGOS
     const pagosObj = {};
     shows.forEach(v => {
         let dep = (v['Deposito'] || '').trim();
