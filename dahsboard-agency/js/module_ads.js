@@ -126,7 +126,7 @@ window.adsApp = {
 
         if (dataFiltrada.ads) {
             dataFiltrada.ads.forEach(ad => {
-                let c = init(ad['Campaign name']);
+                let c = init(ad['OfficialCampaign'] || ad['Campaign name'])
                 let amt = parseFloat(String(ad['Amount spent']||'0').replace(/[^0-9.-]+/g,""))||0;
                 
                 if (amt > 0) {
