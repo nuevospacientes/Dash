@@ -107,55 +107,89 @@ function renderizarGraficos(dataFiltrada) {
         return obj[metricKey] || 0;
     };
 
+    // FUNCIÓN INTELIGENTE DE EXTRACCIÓN DE FECHA Y HORA (CON SOPORTE AM/PM)
+    const getExactDate = (item, dateKeys, timeKeys) => {
+        let rawDate = null, rawTime = null;
+        for (let k of dateKeys) { if (item[k]) { rawDate = item[k]; break; } }
+        for (let k of timeKeys) { if (item[k]) { rawTime = item[k]; break; } }
+        
+        if (!rawDate) return null;
+
+        let t = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item, dateKeys[0]) : new Date(rawDate).getTime();
+        if (!t) return null;
+
+        let d = new Date(t);
+        // Mezclamos la hora real del evento si existe, entendiendo AM y PM
+        if (rawTime && typeof rawTime === 'string') {
+            let timeStr = rawTime.trim().toLowerCase();
+            let isPM = timeStr.includes('pm');
+            let isAM = timeStr.includes('am');
+            
+            // Limpiamos las letras para quedarnos solo con "hh:mm:ss"
+            let cleanTime = timeStr.replace(/[a-z]/g, '').trim();
+            let p = cleanTime.split(':');
+            
+            let h = parseInt(p[0] || 0, 10);
+            let m = parseInt(p[1] || 0, 10);
+            let s = parseInt(p[2] || 0, 10);
+
+            // Convertir a formato 24 horas
+            if (isPM && h < 12) h += 12;
+            if (isAM && h === 12) h = 0;
+
+            d.setHours(h, m, s);
+        }
+
+        // Aplicamos la zona horaria del lead
+        let leadTz = item['Zona Horaria'] || item['Zona horaria'] || globalTz;
+        let leadOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(leadTz) : 0;
+        d.setMinutes(d.getMinutes() + (globalOffset - leadOffset));
+
+        return d;
+    };
+   
     // =========================================================================
     // GRÁFICOS 1 y 2 (SUPERIORES - FILTRADOS)
     // =========================================================================
     let timelineTop = {};
     if (isSingleDay) { for(let i=0; i<24; i++) timelineTop[i] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 }; }
 
-    const agruparTop = (array, propFecha, key, filterFn = null) => {
+    const agruparTop = (array, dateKeys, timeKeys, key, filterFn = null) => {
         if (!array) return;
         array.forEach(item => {
             if (filterFn && !filterFn(item)) return;
-            let rawDate = item[propFecha];
-            if (!rawDate && propFecha === 'Fecha last call') rawDate = item['Fecha 1er llamada'] || item['Fecha entrada lead'];
-            if (!rawDate) return;
-            
-            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item, propFecha) : new Date(rawDate);
-            if (d && !isNaN(new Date(d).getTime())) {
-                let dateObj = new Date(d);
-                dateObj.setMinutes(dateObj.getMinutes() + (globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(item['Zona Horaria'] || item['Zona horaria'] || globalTz) : 0)));
-                
-                let t = dateObj.getTime();
-                if (start !== null && end !== null && (t < start || t >= end)) return;
+            let dateObj = getExactDate(item, dateKeys, timeKeys);
+            if (!dateObj) return;
 
-                if (isSingleDay) {
-                    let h = dateObj.getHours();
-                    if (key === 'stl') {
-                        let bMins = item['_stl_' + globalTz];
-                        if (bMins !== undefined && bMins !== null) { timelineTop[h].stlSum += bMins; timelineTop[h].stlCount++; }
-                    } else { timelineTop[h][key]++; }
-                } else {
-                    let y = dateObj.getFullYear(), m = String(dateObj.getMonth()+1).padStart(2,'0'), day = String(dateObj.getDate()).padStart(2,'0');
-                    let fechaStr = `${y}-${m}-${day}`;
-                    if (!timelineTop[fechaStr]) timelineTop[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 };
-                    
-                    if (key === 'stl') {
-                        let bMins = item['_stl_' + globalTz];
-                        if (bMins !== undefined && bMins !== null) { timelineTop[fechaStr].stlSum += bMins; timelineTop[fechaStr].stlCount++; }
-                    } else { timelineTop[fechaStr][key]++; }
-                }
+            let t = dateObj.getTime();
+            if (start !== null && end !== null && (t < start || t >= end)) return; // Fiel al filtro global
+
+            if (isSingleDay) {
+                let h = dateObj.getHours(); // Ahora sí extrae la hora precisa
+                if (key === 'stl') {
+                    let bMins = item['_stl_' + globalTz];
+                    if (bMins !== undefined && bMins !== null) { timelineTop[h].stlSum += bMins; timelineTop[h].stlCount++; }
+                } else { timelineTop[h][key]++; }
+            } else {
+                let y = dateObj.getFullYear(), m = String(dateObj.getMonth()+1).padStart(2,'0'), day = String(dateObj.getDate()).padStart(2,'0');
+                let fechaStr = `${y}-${m}-${day}`;
+                if (!timelineTop[fechaStr]) timelineTop[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 };
+                
+                if (key === 'stl') {
+                    let bMins = item['_stl_' + globalTz];
+                    if (bMins !== undefined && bMins !== null) { timelineTop[fechaStr].stlSum += bMins; timelineTop[fechaStr].stlCount++; }
+                } else { timelineTop[fechaStr][key]++; }
             }
         });
     };
 
-    agruparTop(leads, 'Fecha entrada lead', 'leads'); 
-    agruparTop(contactadosFiltrados, 'Fecha last call', 'contactados');
-    agruparTop(llamadas, 'Fecha last call', 'llamadas'); 
-    agruparTop(citas, 'Cita generada', 'citas'); 
-    agruparTop(shows, 'Fecha Visita', 'shows');
-    agruparTop(shows, 'Fecha Visita', 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
-    agruparTop(contactadosFiltrados, 'Fecha last call', 'stl');
+    agruparTop(leads, ['Fecha entrada lead', 'Fecha Lead entra'], ['Hora Generado', 'Hora entrada'], 'leads'); 
+    agruparTop(contactadosFiltrados, ['Fecha last call', 'Fecha 1er llamada', 'Fecha entrada lead'], ['Hora last call', 'Hora 1er llamada', 'Hora entrada'], 'contactados');
+    agruparTop(llamadas, ['Fecha last call', 'Fecha 1er llamada'], ['Hora last call', 'Hora 1er llamada'], 'llamadas'); 
+    agruparTop(citas, ['Cita generada'], ['Hora 1er llamada'], 'citas'); 
+    agruparTop(shows, ['Fecha Visita'], ['Hora Visita'], 'shows');
+    agruparTop(shows, ['Fecha Visita'], ['Hora Visita'], 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
+    agruparTop(contactadosFiltrados, ['Fecha last call', 'Fecha 1er llamada', 'Fecha entrada lead'], ['Hora last call', 'Hora 1er llamada', 'Hora entrada'], 'stl');
 
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     let topKeys = isSingleDay ? Array.from({length: 24}, (_, i) => i) : Object.keys(timelineTop).sort();
@@ -268,13 +302,13 @@ function renderizarGraficos(dataFiltrada) {
     };
 
     if (window.AppData && window.AppData.raw) {
-        agruparBottom(window.AppData.raw.leads, 'Fecha entrada lead', 'leads');
-        agruparBottom(window.AppData.raw.contactados, 'Fecha last call', 'contactados');
-        agruparBottom(window.AppData.raw.llamadas, 'Fecha last call', 'llamadas');
-        agruparBottom(window.AppData.raw.citas, 'Cita generada', 'citas');
-        agruparBottom(window.AppData.raw.shows, 'Fecha Visita', 'shows');
-        agruparBottom(window.AppData.raw.shows, 'Fecha Visita', 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
-        agruparBottom(window.AppData.raw.contactados, 'Fecha last call', 'stl');
+        agruparBottom(window.AppData.raw.leads, ['Fecha entrada lead', 'Fecha Lead entra'], ['Hora Generado', 'Hora entrada'], 'leads');
+        agruparBottom(window.AppData.raw.contactados, ['Fecha last call', 'Fecha 1er llamada', 'Fecha entrada lead'], ['Hora last call', 'Hora 1er llamada', 'Hora entrada'], 'contactados');
+        agruparBottom(window.AppData.raw.llamadas, ['Fecha last call', 'Fecha 1er llamada'], ['Hora last call', 'Hora 1er llamada'], 'llamadas');
+        agruparBottom(window.AppData.raw.citas, ['Cita generada'], ['Hora 1er llamada'], 'citas');
+        agruparBottom(window.AppData.raw.shows, ['Fecha Visita'], ['Hora Visita'], 'shows');
+        agruparBottom(window.AppData.raw.shows, ['Fecha Visita'], ['Hora Visita'], 'ventas', (item) => { const dep = (item['Deposito'] || '').toLowerCase().trim(); return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito'; });
+        agruparBottom(window.AppData.raw.contactados, ['Fecha last call', 'Fecha 1er llamada', 'Fecha entrada lead'], ['Hora last call', 'Hora 1er llamada', 'Hora entrada'], 'stl');
     }
 
     let histKeys = Object.keys(botHist).sort();
