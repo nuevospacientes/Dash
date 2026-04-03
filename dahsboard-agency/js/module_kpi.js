@@ -65,11 +65,21 @@ function getBusinessMinutes(dateStart, dateEnd) {
 }
 
 function renderizarVistaGeneral(dataFiltrada) {
-    const tLeads = dataFiltrada.leads.length;
+    // ESCUDOS: Evitan el quiebre si la hoja llega vacía o falla la red
+    const leadsRaw = dataFiltrada.leads || [];
+    const contactadosRaw = dataFiltrada.contactados || [];
+    const llamadasRaw = dataFiltrada.llamadas || [];
+    const citasGeneradasRaw = dataFiltrada.citasGeneradas || [];
+    const citasCalendarioRaw = dataFiltrada.citasCalendario || [];
+    const showsRaw = dataFiltrada.shows || [];
+    const showsNtRaw = dataFiltrada.showsNt || [];
+    const adsRaw = dataFiltrada.ads || [];
+
+    const tLeads = leadsRaw.length;
     
     // 1. LEADS CONTACTADOS (Únicos por número, guardando la fila completa)
     const contactadosMap = new Map();
-    dataFiltrada.contactados.forEach(c => {
+    contactadosRaw.forEach(c => {
         let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
         if (num !== '' && !contactadosMap.has(num)) contactadosMap.set(num, c);
     });
@@ -78,7 +88,7 @@ function renderizarVistaGeneral(dataFiltrada) {
 
     // 2. LLAMADAS CONECTADAS (Únicos por número, guardando la fila completa)
     const llamadasMap = new Map();
-    dataFiltrada.llamadas.forEach(c => {
+    llamadasRaw.forEach(c => {
         let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
         if (num !== '' && !llamadasMap.has(num)) llamadasMap.set(num, c);
     });
@@ -88,19 +98,19 @@ function renderizarVistaGeneral(dataFiltrada) {
     const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
 
     // 3. CITAS SEPARADAS (Nuevas vs Calendario)
-    const citasNuevas = dataFiltrada.citasGeneradas ? dataFiltrada.citasGeneradas.filter(c => {
+    const citasNuevas = citasGeneradasRaw.filter(c => {
         let tipo = String(c['Tipo de cita'] || '').toLowerCase();
         return !tipo.includes('reprogramada');
-    }) : [];
+    });
     const tCitasGeneradas = citasNuevas.length;
-    const tCitasCalendario = dataFiltrada.citasCalendario ? dataFiltrada.citasCalendario.length : 0;
+    const tCitasCalendario = citasCalendarioRaw.length;
 
     // 4. SHOWS TOTALES (Suma de Shows regulares + Shows NT)
-    const todosLosShows = [...(dataFiltrada.shows || []), ...(dataFiltrada.showsNt || [])];
+    const todosLosShows = [...showsRaw, ...showsNtRaw];
     const tShows = todosLosShows.length;
     
-    // 5. VENTAS CERRADAS (Ahora sumamos toda la hoja de Shows validando la data)
-    const ventas = dataFiltrada.shows || [];
+    // 5. VENTAS CERRADAS 
+    const ventas = showsRaw;
     const tVentas = ventas.length;
 
     // Ratios del Embudo
@@ -111,47 +121,56 @@ function renderizarVistaGeneral(dataFiltrada) {
 
     // --- CÁLCULO DEL SPEED TO LEAD ---
     let stlMap = {}; 
-    const globalTz = document.getElementById('global-timezone').value;
-    const globalOffset = getTzOffsetMins(globalTz);
+    const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
+    const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
-    if (dataFiltrada.contactados) {
-        dataFiltrada.contactados.forEach(c => {
-            let id = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-            if (id === '') return;
+    contactadosRaw.forEach(c => {
+        let id = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
+        if (id === '') return;
 
-            let cacheKey = '_stl_' + globalTz;
-            let bMinutes = c[cacheKey]; 
+        let cacheKey = '_stl_' + globalTz;
+        let bMinutes = c[cacheKey]; 
 
-            if (bMinutes === undefined) {
-                let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
-                let hEntrada = c['Hora Generado'] || c['Hora entrada'];
-                let fLlamada = c['Fecha 1er llamada'];
-                let hLlamada = c['Hora 1er llamada'];
-                let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
+        if (bMinutes === undefined) {
+            let fEntrada = c['Fecha entrada lead'] || c['Fecha Lead entra'];
+            let hEntrada = c['Hora Generado'] || c['Hora entrada'];
+            let fLlamada = c['Fecha 1er llamada'];
+            let hLlamada = c['Hora 1er llamada'];
+            let leadTz = c['Zona Horaria'] || c['Zona horaria'] || globalTz;
 
-                if (fEntrada && hEntrada && fLlamada && hLlamada) {
-                    let tEntrada = parseDateSpanish(fEntrada, c, 'Fecha entrada lead');
-                    let tLlamada = parseDateSpanish(fLlamada, c, 'Fecha 1er llamada');
-                    if (tEntrada && tLlamada) {
-                        let parseTime = (str) => { let p = String(str).split(':'); return { h: parseInt(p[0]||0), m: parseInt(p[1]||0), s: parseInt(p[2]||0) }; };
-                        let timeE = parseTime(hEntrada); let timeL = parseTime(hLlamada);
-                        let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
-                        let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
-                        let diffMins = globalOffset - getTzOffsetMins(leadTz);
-                        dateE.setMinutes(dateE.getMinutes() + diffMins); dateL.setMinutes(dateL.getMinutes() + diffMins);
-                        
-                        bMinutes = getBusinessMinutes(dateE, dateL);
-                    } else { bMinutes = null; }
-                } else { bMinutes = null; }
+            if (fEntrada && hEntrada && fLlamada && hLlamada) {
+                let tEntrada = typeof parseDateSpanish === 'function' ? parseDateSpanish(fEntrada, c, 'Fecha entrada lead') : null;
+                let tLlamada = typeof parseDateSpanish === 'function' ? parseDateSpanish(fLlamada, c, 'Fecha 1er llamada') : null;
                 
-                c[cacheKey] = bMinutes; 
-            }
+                if (tEntrada && tLlamada) {
+                    // CEREBRO AM/PM INTEGRADO
+                    let parseTime = (str) => { 
+                        let tStr = String(str).trim().toLowerCase();
+                        let isPM = tStr.includes('pm'), isAM = tStr.includes('am');
+                        let p = tStr.replace(/[a-z]/g, '').trim().split(':'); 
+                        let h = parseInt(p[0]||0, 10), m = parseInt(p[1]||0, 10), s = parseInt(p[2]||0, 10);
+                        if (isPM && h < 12) h += 12;
+                        if (isAM && h === 12) h = 0;
+                        return { h, m, s }; 
+                    };
+                    
+                    let timeE = parseTime(hEntrada); let timeL = parseTime(hLlamada);
+                    let dateE = new Date(tEntrada); dateE.setHours(timeE.h, timeE.m, timeE.s);
+                    let dateL = new Date(tLlamada); dateL.setHours(timeL.h, timeL.m, timeL.s);
+                    let diffMins = globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(leadTz) : 0);
+                    dateE.setMinutes(dateE.getMinutes() + diffMins); dateL.setMinutes(dateL.getMinutes() + diffMins);
+                    
+                    bMinutes = getBusinessMinutes(dateE, dateL);
+                } else { bMinutes = null; }
+            } else { bMinutes = null; }
+            
+            c[cacheKey] = bMinutes; 
+        }
 
-            if (bMinutes !== null && (stlMap[id] === undefined || bMinutes < stlMap[id])) {
-                stlMap[id] = bMinutes;
-            }
-        });
-    }
+        if (bMinutes !== null && (stlMap[id] === undefined || bMinutes < stlMap[id])) {
+            stlMap[id] = bMinutes;
+        }
+    });
 
     let validStlCount = Object.keys(stlMap).length;
     let totalMinutes = Object.values(stlMap).reduce((a, b) => a + b, 0);
@@ -161,12 +180,10 @@ function renderizarVistaGeneral(dataFiltrada) {
 
     const metas = JSON.parse(localStorage.getItem('np_metas')) || { ads: 3000, citas: 100 };
     let inversionActual = 0;
-    if (dataFiltrada.ads) {
-        dataFiltrada.ads.forEach(ad => {
-            let spent = String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "");
-            inversionActual += parseFloat(spent) || 0;
-        });
-    }
+    adsRaw.forEach(ad => {
+        let spent = String(ad['Amount spent'] || '0').replace(/[^0-9.-]+/g, "");
+        inversionActual += parseFloat(spent) || 0;
+    });
 
     // --- CÁLCULOS FINANCIEROS (CPA) ---
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
@@ -174,7 +191,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     const cpa_citas_cal = tCitasCalendario > 0 ? (inversionActual / tCitasCalendario).toFixed(2) : 0;
     const costo_venta = tVentas > 0 ? (inversionActual / tVentas).toFixed(2) : 0;
 
-    // --- INYECCIÓN A LAS 8 TARJETAS SEPARADAS Y EVENTOS DE CLIC ---
+    // --- INYECCIÓN A LAS TARJETAS SEPARADAS Y EVENTOS DE CLIC ---
     const setMetric = (id, val, subtitleId, subtitleVal, clickData, clickTitle, clickDateCol) => {
         const el = document.getElementById(id);
         if(el) {
@@ -190,7 +207,7 @@ function renderizarVistaGeneral(dataFiltrada) {
         }
     };
 
-    setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, dataFiltrada.leads, 'Volumen de Leads', 'Fecha Entrada');
+    setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, leadsRaw, 'Volumen de Leads', 'Fecha Entrada');
     setMetric('kpi-stl', stlDisplay, null, null, null, null, null);
     setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
     setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
@@ -199,7 +216,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     const brEl = document.getElementById('kpi-booking-rate'); if(brEl) brEl.innerText = `${bookingRate}%`;
     const cpaEl = document.getElementById('kpi-cpa-cita'); if(cpaEl) cpaEl.innerText = cpa_citas;
 
-    setMetric('kpi-citas-cal', tCitasCalendario, 'kpi-subtitle-citas-cal', `Costo x Cita (Cal): $${cpa_citas_cal}`, dataFiltrada.citasCalendario, 'Citas en Calendario', 'Fecha Programada');
+    setMetric('kpi-citas-cal', tCitasCalendario, 'kpi-subtitle-citas-cal', `Costo x Cita (Cal): $${cpa_citas_cal}`, citasCalendarioRaw, 'Citas en Calendario', 'Fecha Programada');
     
     setMetric('kpi-shows', tShows, 'kpi-show-rate', `Show Rate: ${showRate}%`, todosLosShows, 'Shows y Asistencias', 'Fecha Visita');
     
@@ -215,7 +232,7 @@ function renderizarVistaGeneral(dataFiltrada) {
         topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
     }
 
-    // DISTRIBUCIÓN DE PAGOS (Con Atribución "Sin Depósito")
+    // DISTRIBUCIÓN DE PAGOS
     const paymentContainer = document.getElementById('payment-distribution-container');
     if (paymentContainer) {
         paymentContainer.innerHTML = ''; 
@@ -228,7 +245,6 @@ function renderizarVistaGeneral(dataFiltrada) {
                 let mLower = metodoRaw.toLowerCase();
                 let metodoFinal = metodoRaw;
 
-                // Nueva regla para agrupar a los que pagan en clínica
                 if (mLower === '' || mLower.includes('sin deposito') || mLower.includes('sin depósito')) {
                     metodoFinal = 'Sin Depósito (Pago en Clínica)';
                 } else if (mLower.includes('transferencia')) {
@@ -295,7 +311,6 @@ window.abrirModalLista = function(titulo, lista, tituloColFecha) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros para mostrar.</td></tr>';
     } else {
         lista.forEach(v => {
-            // Buscamos la fecha en cualquiera de los formatos comunes de tus hojas
             let fecha = v['Fecha entrada lead'] || v['Fecha Lead entra'] || v['Fecha 1er llamada'] || v['Fecha last call'] || v['Cita generada'] || v['Fecha Visita'] || v['Cita Programada en'] || '-';
             let nombre = v['Nombre'] || v['First Name'] || v['Lead Name'] || 'Desconocido';
             let telefono = v['Numero'] || v['Teléfono'] || v['Telefono'] || v['Phone'] || v['Número'] || '-';
