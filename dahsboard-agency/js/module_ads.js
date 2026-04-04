@@ -31,7 +31,8 @@ window.adsApp = {
         profit: { label: 'Profit Neto', type: 'currency_sign' },
         clics: { label: 'Clics Totales', type: 'number' },
         ctr: { label: 'CTR Promedio', type: 'percentage' },
-        impresiones: { label: 'Impresiones', type: 'number' }
+        impresiones: { label: 'Impresiones', type: 'number' },
+        stl: { label: 'Speed to Lead (Min)', type: 'number' } // STL Agregado
     },
 
     init: function() {
@@ -50,6 +51,7 @@ window.adsApp = {
             { id: 'cp_show', label: 'Costo x Show ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'ventas', label: 'Ventas ↕', type: 'number', visible: true, align: 'right', color: 'var(--accent-success)' },
             { id: 'cpa', label: 'CPA ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
+            { id: 'stl', label: 'Speed To Lead ↕', type: 'number', visible: true, align: 'right', color: '#bc13fe' }, // Columna STL Agregada
             { id: 'ingresos', label: 'Ingresos ↕', type: 'currency', visible: false, align: 'right', color: '#10b981' },
             { id: 'roas', label: 'ROAS ↕', type: 'roas', visible: false, align: 'right', color: '#bc13fe' }
         ];
@@ -72,6 +74,10 @@ window.adsApp = {
                 if(menu) menu.classList.remove('show');
             }
         });
+
+        // Configuración de filtro por defecto
+        const statusFilter = document.getElementById('ads-status-filter');
+        if (statusFilter) statusFilter.value = 'all';
 
         this.isInitialized = true;
     },
@@ -115,18 +121,18 @@ window.adsApp = {
             if(!stats[c]) stats[c] = {
                 campana: c, gasto: 0, clics: 0, impresiones: 0,
                 leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0,
-                isActive: false // Para el filtro de estado
+                stlSum: 0, stlCount: 0, stl: 0, // Variables STL
+                isActive: false
             };
             return c;
         };
 
-        // Regla: Si gastó dinero de ayer a hoy, está Activa.
         let now = new Date();
         let startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
 
         if (dataFiltrada.ads) {
             dataFiltrada.ads.forEach(ad => {
-                let c = init(ad['OfficialCampaign'] || ad['Campaign name'])
+                let c = init(ad['OfficialCampaign'] || ad['Campaign name']);
                 let amt = parseFloat(String(ad['Amount spent']||'0').replace(/[^0-9.-]+/g,""))||0;
                 
                 if (amt > 0) {
@@ -146,6 +152,8 @@ window.adsApp = {
 
         dataFiltrada.leads.forEach(r => { stats[init(r['Campaña'])].leads++; });
 
+        const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
+
         let leadsContactadosSet = {};
         dataFiltrada.contactados.forEach(r => {
             let c = init(r['Campaña']);
@@ -154,7 +162,15 @@ window.adsApp = {
                 if(!leadsContactadosSet[c]) leadsContactadosSet[c] = new Set();
                 leadsContactadosSet[c].add(num);
             }
+            
+            // Cálculo del STL para esta campaña
+            let bMins = r['_stl_' + globalTz];
+            if (bMins !== undefined && bMins !== null) {
+                stats[c].stlSum += bMins;
+                stats[c].stlCount++;
+            }
         });
+        
         for(let c in leadsContactadosSet) stats[c].contactados = leadsContactadosSet[c].size;
 
         dataFiltrada.citas.forEach(r => { stats[init(r['Campaña'])].citas++; });
@@ -178,6 +194,8 @@ window.adsApp = {
             r.cpa = r.ventas > 0 ? r.gasto / r.ventas : 0;
             r.roas = r.gasto > 0 ? r.ingresos / r.gasto : 0;
             r.ctr = r.impresiones > 0 ? (r.clics / r.impresiones) * 100 : 0;
+            r.stl = r.stlCount > 0 ? Math.round(r.stlSum / r.stlCount) : 0; // STL Promedio final
+            
             this.customColumns.forEach(cc => { r[cc.id] = this.evaluateFormula(cc.formula, r); });
             return r;
         });
@@ -214,9 +232,8 @@ window.adsApp = {
         let visibleCols = this.tableColumns.filter(c => c.visible);
 
         let searchTerm = document.getElementById('ads-search-camp') ? document.getElementById('ads-search-camp').value.toLowerCase() : '';
-        let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'active';
+        let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'all'; // Cambiado a 'all'
 
-        // 1. Dibujar Encabezados (Draggable y Resizable)
         visibleCols.forEach((col) => {
             const th = document.createElement('th');
             th.className = `draggable-header`;
@@ -240,7 +257,6 @@ window.adsApp = {
             thead.appendChild(th);
         });
 
-        // 2. Filtrar Datos
         let filteredData = this.consolidatedData.filter(row => {
             if (searchTerm && !row.campana.toLowerCase().includes(searchTerm)) return false;
             if (statusFilter === 'active' && !row.isActive) return false;
@@ -248,13 +264,13 @@ window.adsApp = {
             return true;
         });
 
-        let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0 };
+        let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0, stlSum: 0, stlCount: 0 };
 
-        // 3. Dibujar Filas
         filteredData.forEach(row => {
             t.gasto += row.gasto||0; t.clics += row.clics||0; t.impresiones += row.impresiones||0;
             t.leads += row.leads||0; t.contactados += row.contactados||0; t.citas += row.citas||0;
             t.shows += row.shows||0; t.ventas += row.ventas||0; t.ingresos += row.ingresos||0;
+            t.stlSum += row.stlSum||0; t.stlCount += row.stlCount||0;
 
             const tr = document.createElement('tr');
             visibleCols.forEach(col => {
@@ -272,7 +288,6 @@ window.adsApp = {
         if(filteredData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="${visibleCols.length}" style="text-align: center; padding: 20px; color: var(--text-muted);">No hay campañas que coincidan con tu búsqueda o filtro.</td></tr>`;
         } else {
-            // 4. Inyectar Footer Pegajoso
             t.cpl = t.leads > 0 ? t.gasto / t.leads : 0;
             t.cpq = t.contactados > 0 ? t.gasto / t.contactados : 0;
             t.cp_cita = t.citas > 0 ? t.gasto / t.citas : 0;
@@ -280,6 +295,8 @@ window.adsApp = {
             t.cpa = t.ventas > 0 ? t.gasto / t.ventas : 0;
             t.roas = t.gasto > 0 ? t.ingresos / t.gasto : 0;
             t.ctr = t.impresiones > 0 ? (t.clics / t.impresiones) * 100 : 0;
+            t.stl = t.stlCount > 0 ? Math.round(t.stlSum / t.stlCount) : 0;
+            
             this.customColumns.forEach(cc => { t[cc.id] = this.evaluateFormula(cc.formula, t); });
 
             const trTotal = document.createElement('tr');
@@ -293,11 +310,10 @@ window.adsApp = {
             tfoot.appendChild(trTotal);
         }
 
-        this.totals = t; // Guardar totales para el redibujo de tarjetas
+        this.totals = t; 
         this.updateKPIs();
     },
 
-    // --- FORMATEADOR MAESTRO ---
     formatMetric: function(val, type) {
         val = val || 0;
         if (type === 'number') return val.toLocaleString(undefined, {maximumFractionDigits: 0});
@@ -311,7 +327,6 @@ window.adsApp = {
         return val;
     },
 
-    // --- CREADOR DE TARJETAS DINÁMICAS (KPIs) ---
     updateKPIs: function() {
         const t = this.totals;
         if(!t) return;
@@ -345,7 +360,6 @@ window.adsApp = {
         });
     },
 
-    // --- MODAL Y DRAG & DROP DE TARJETAS ---
     openKpiModal: function() {
         const container = document.getElementById('kpi-config-list');
         container.innerHTML = '';
@@ -421,7 +435,6 @@ window.adsApp = {
         document.getElementById('modal-ads-kpi').style.display = 'none';
     },
 
-    // --- MANEJO REDIMENSIONAR COLUMNAS ---
     createResizableColumn: function(col, resizer) {
         let x = 0; let w = 0;
         const mouseDownHandler = function(e) {
@@ -447,7 +460,6 @@ window.adsApp = {
         resizer.addEventListener('mousedown', mouseDownHandler);
     },
 
-    // --- MANEJO CONFIGURACIÓN COLUMNAS TABLA ---
     renderColumnSettings: function() {
         const container = document.getElementById('ads-col-menu');
         if(!container) return;
@@ -485,7 +497,6 @@ window.adsApp = {
         this.processData(window.AppData.lastFiltrada || window.AppData.raw);
     },
 
-    // --- EVENTOS DRAG AND DROP TABLA ---
     handleDragStart: function(e, colId) {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', colId);
