@@ -265,7 +265,27 @@ function renderizarGraficos(dataFiltrada) {
                     { label: conf2.label, data: topKeys.map(k => extractMetricValue(timelineTop[k], m2)), borderColor: conf2.color, backgroundColor: conf2.color, tension: 0.4, borderWidth: 3, borderDash: [5, 5], yAxisID: 'y1' }
                 ]
             }, 
-            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' } }, scales: { y: { type: 'linear', display: true, position: 'left', reverse: conf1.isReverse }, y1: { type: 'linear', display: true, position: 'right', reverse: conf2.isReverse, grid: { drawOnChartArea: false } } } }
+            options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    interaction: { mode: 'index', intersect: false }, 
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    let conf = (context.datasetIndex === 0) ? conf2 : conf1; // dataset[0] es m2, dataset[1] es m1
+                                    return label + formatTooltip(context.parsed.y, conf);
+                                }
+                            }
+                        }
+                    },
+                    scales: { 
+                        y: { type: 'linear', display: true, position: 'left', reverse: conf1.isReverse, beginAtZero: true }, 
+                        y1: { type: 'linear', display: true, position: 'right', reverse: conf2.isReverse, beginAtZero: true, grid: { drawOnChartArea: false } } 
+                    } 
+                }
         });
     };
     window.updateDynamicChart();
@@ -362,7 +382,29 @@ function renderizarGraficos(dataFiltrada) {
                         { label: conf2.label, data: keysHoy.map(k => extractMetricValue(botHoy[k], m2)), type: 'line', borderColor: conf2.color, backgroundColor: conf2.color, borderWidth: 3, tension: 0.4, yAxisID: 'y1', spanGaps: false },
                         { label: conf1.label, data: keysHoy.map(k => extractMetricValue(botHoy[k], m1)), backgroundColor: conf1.color + '66', borderColor: conf1.color, borderWidth: 1, borderRadius: 4, yAxisID: 'y' }
                     ]
-                }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { y: { type: 'linear', display: true, position: 'left', reverse: conf1.isReverse, beginAtZero: true }, y1: { type: 'linear', display: true, position: 'right', reverse: conf2.isReverse, beginAtZero: true, grid: { drawOnChartArea: false } } } }
+                }, 
+
+               options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    interaction: { mode: 'index', intersect: false }, 
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    let conf = (context.datasetIndex === 0) ? conf2 : conf1; 
+                                    return label + formatTooltip(context.parsed.y, conf);
+                                }
+                            }
+                        }
+                    },
+                    scales: { 
+                        y: { type: 'linear', display: true, position: 'left', reverse: conf1.isReverse, beginAtZero: true }, 
+                        y1: { type: 'linear', display: true, position: 'right', reverse: conf2.isReverse, beginAtZero: true, grid: { drawOnChartArea: false } } 
+                    } 
+                }
             });
         }
         window.switchDynamicTab(activeDynamicTab);
