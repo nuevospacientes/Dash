@@ -230,12 +230,23 @@
                         <h2><i class="fa-solid fa-chart-line"></i> Crear Métrica de Gráfico</h2>
                         <button onclick="document.getElementById('modal-custom-chart').style.display='none'" class="close-btn">&times;</button>
                     </div>
-                    <p class="modal-desc" style="margin-bottom: 15px;">Crea una nueva métrica matemática para graficar (ej: Booking Rate).</p>
+                    <p class="modal-desc" style="margin-bottom: 15px;">Crea una nueva métrica matemática para visualizarla en las líneas de tiempo.</p>
                     
-                    <div class="input-group">
-                        <label>Nombre de la Métrica</label>
-                        <input type="text" id="chart-custom-name" placeholder="Ej. Tasa de Asistencia">
+                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="input-group" style="flex: 2;">
+                            <label>Nombre de la Métrica</label>
+                            <input type="text" id="chart-custom-name" placeholder="Ej. Tasa de Asistencia">
+                        </div>
+                        <div class="input-group" style="flex: 1;">
+                            <label>Formato Visual</label>
+                            <select id="chart-custom-format" class="filter-select w-full" style="max-width: 100%;">
+                                <option value="number" selected>Número (0)</option>
+                                <option value="percentage">Porcentaje (0%)</option>
+                                <option value="currency">Moneda ($0.00)</option>
+                            </select>
+                        </div>
                     </div>
+                    
                     <div class="input-group">
                         <label>Fórmula Matemática</label>
                         <input type="text" id="chart-custom-formula" placeholder="Ej. ( {{shows}} / {{citas}} ) * 100" style="font-family: monospace; background: rgba(0,0,0,0.2);">
