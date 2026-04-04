@@ -40,11 +40,13 @@ window.insertChartVar = function(v) {
 window.guardarCustomChartMetric = function() {
     const name = document.getElementById('chart-custom-name').value.trim();
     const formula = document.getElementById('chart-custom-formula').value.trim();
+    const format = document.getElementById('chart-custom-format') ? document.getElementById('chart-custom-format').value : 'number';
+    
     if (!name || !formula) { alert("Ingresa un nombre y una fórmula."); return; }
     
     let customMetrics = JSON.parse(localStorage.getItem('np_chart_custom_metrics')) || {};
     let id = 'chart_custom_' + Date.now();
-    customMetrics[id] = { name, formula };
+    customMetrics[id] = { name, formula, format }; // Ahora guardamos el formato
     localStorage.setItem('np_chart_custom_metrics', JSON.stringify(customMetrics));
     
     document.getElementById('modal-custom-chart').style.display = 'none';
@@ -76,12 +78,27 @@ function renderizarGraficos(dataFiltrada) {
         'stl': { label: 'Speed to Lead (Min)', color: '#bc13fe', isReverse: true }
     };
 
+   // Nueva variable
+    const formatTooltip = (val, conf) => {
+        if (!conf || !conf.format) return val;
+        if (conf.format === 'percentage') return `${val}%`;
+        if (conf.format === 'currency') return `$${val.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        return val;
+    };
+   
     const customMetrics = JSON.parse(localStorage.getItem('np_chart_custom_metrics')) || {};
     const syncSelect = (id) => {
         const sel = document.getElementById(id);
         if(!sel) return;
         Object.keys(customMetrics).forEach(k => {
-            METRIC_CONFIG[k] = { label: customMetrics[k].name, color: '#37ca37', isReverse: false, formula: customMetrics[k].formula };
+            // Pasamos el formato al config maestro
+            METRIC_CONFIG[k] = { 
+                label: customMetrics[k].name, 
+                color: '#37ca37', 
+                isReverse: false, 
+                formula: customMetrics[k].formula,
+                format: customMetrics[k].format || 'number'
+            };
             if(!sel.querySelector(`option[value="${k}"]`)) {
                 const opt = document.createElement('option');
                 opt.value = k; opt.innerText = customMetrics[k].name;
