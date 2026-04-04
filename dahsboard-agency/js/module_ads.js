@@ -32,7 +32,7 @@ window.adsApp = {
         clics: { label: 'Clics Totales', type: 'number' },
         ctr: { label: 'CTR Promedio', type: 'percentage' },
         impresiones: { label: 'Impresiones', type: 'number' },
-        stl: { label: 'Speed to Lead (Min)', type: 'number' } // STL Agregado
+        stl: { label: 'Speed to Lead', type: 'time' } // STL Agregado
     },
 
     init: function() {
@@ -51,7 +51,7 @@ window.adsApp = {
             { id: 'cp_show', label: 'Costo x Show ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'ventas', label: 'Ventas ↕', type: 'number', visible: true, align: 'right', color: 'var(--accent-success)' },
             { id: 'cpa', label: 'CPA ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
-            { id: 'stl', label: 'Speed To Lead ↕', type: 'number', visible: true, align: 'right', color: '#bc13fe' }, // Columna STL Agregada
+            { id: 'stl', label: 'Speed To Lead ↕', type: 'time', visible: true, align: 'right', color: '#bc13fe' }, // Columna STL Agregada
             { id: 'ingresos', label: 'Ingresos ↕', type: 'currency', visible: false, align: 'right', color: '#10b981' },
             { id: 'roas', label: 'ROAS ↕', type: 'roas', visible: false, align: 'right', color: '#bc13fe' }
         ];
@@ -323,6 +323,13 @@ window.adsApp = {
         if (type === 'currency_sign') {
             let sign = val >= 0 ? '+$' : '-$';
             return `${sign}${Math.abs(val).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        if (type === 'time') {
+            if (val === 0) return '0 min';
+            if (val < 60) return `${Math.round(val)} min`;
+            let h = Math.floor(val / 60);
+            let m = Math.round(val % 60);
+            return `${h}h ${m}m`;
         }
         return val;
     },
