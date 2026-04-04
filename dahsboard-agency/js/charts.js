@@ -107,7 +107,9 @@ function renderizarGraficos(dataFiltrada) {
         return obj[metricKey] || 0;
     };
 
-    // FUNCIÓN INTELIGENTE DE EXTRACCIÓN DE FECHA Y HORA (CON SOPORTE AM/PM)
+    // =========================================================================
+    // MOTOR DE FECHAS (Extrae fecha y hora AM/PM y aplica zona horaria)
+    // =========================================================================
     const getExactDate = (item, dateKeys, timeKeys) => {
         let rawDate = null, rawTime = null;
         for (let k of dateKeys) { if (item[k]) { rawDate = item[k]; break; } }
@@ -119,13 +121,11 @@ function renderizarGraficos(dataFiltrada) {
         if (!t) return null;
 
         let d = new Date(t);
-        // Mezclamos la hora real del evento si existe, entendiendo AM y PM
         if (rawTime && typeof rawTime === 'string') {
             let timeStr = rawTime.trim().toLowerCase();
             let isPM = timeStr.includes('pm');
             let isAM = timeStr.includes('am');
             
-            // Limpiamos las letras para quedarnos solo con "hh:mm:ss"
             let cleanTime = timeStr.replace(/[a-z]/g, '').trim();
             let p = cleanTime.split(':');
             
@@ -133,21 +133,19 @@ function renderizarGraficos(dataFiltrada) {
             let m = parseInt(p[1] || 0, 10);
             let s = parseInt(p[2] || 0, 10);
 
-            // Convertir a formato 24 horas
             if (isPM && h < 12) h += 12;
             if (isAM && h === 12) h = 0;
 
             d.setHours(h, m, s);
         }
 
-        // Aplicamos la zona horaria del lead
         let leadTz = item['Zona Horaria'] || item['Zona horaria'] || globalTz;
         let leadOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(leadTz) : 0;
         d.setMinutes(d.getMinutes() + (globalOffset - leadOffset));
 
         return d;
     };
-   
+
     // =========================================================================
     // GRÁFICOS 1 y 2 (SUPERIORES - FILTRADOS)
     // =========================================================================
@@ -158,14 +156,16 @@ function renderizarGraficos(dataFiltrada) {
         if (!array) return;
         array.forEach(item => {
             if (filterFn && !filterFn(item)) return;
+            
+            // CORRECCIÓN AQUÍ: Usamos getExactDate con los arrays de claves
             let dateObj = getExactDate(item, dateKeys, timeKeys);
             if (!dateObj) return;
 
             let t = dateObj.getTime();
-            if (start !== null && end !== null && (t < start || t >= end)) return; // Fiel al filtro global
+            if (start !== null && end !== null && (t < start || t >= end)) return; // Filtro global
 
             if (isSingleDay) {
-                let h = dateObj.getHours(); // Ahora sí extrae la hora precisa
+                let h = dateObj.getHours();
                 if (key === 'stl') {
                     let bMins = item['_stl_' + globalTz];
                     if (bMins !== undefined && bMins !== null) { timelineTop[h].stlSum += bMins; timelineTop[h].stlCount++; }
@@ -265,38 +265,32 @@ function renderizarGraficos(dataFiltrada) {
     let botHist = {}, botHoy = {};
     for(let i=0; i<24; i++) botHoy[i] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 };
 
-    const agruparBottom = (array, propFecha, key, filterFn = null) => {
+    const agruparBottom = (array, dateKeys, timeKeys, key, filterFn = null) => {
         if (!array) return;
         array.forEach(item => {
             if (campaignSelected !== 'all' && item['Campaña'] !== campaignSelected) return;
             if (operatorSelected !== 'all' && item['Operador'] !== operatorSelected) return;
             if (filterFn && !filterFn(item)) return;
 
-            let rawDate = item[propFecha];
-            if (!rawDate && propFecha === 'Fecha last call') rawDate = item['Fecha 1er llamada'] || item['Fecha entrada lead'];
-            if (!rawDate) return;
+            // CORRECCIÓN AQUÍ: Usamos getExactDate con los arrays de claves
+            let dateObj = getExactDate(item, dateKeys, timeKeys);
+            if (!dateObj) return;
             
-            let d = typeof parseDateSpanish === 'function' ? parseDateSpanish(rawDate, item, propFecha) : new Date(rawDate);
-            if (d && !isNaN(new Date(d).getTime())) {
-                let dateObj = new Date(d);
-                dateObj.setMinutes(dateObj.getMinutes() + (globalOffset - (typeof getTzOffsetMins === 'function' ? getTzOffsetMins(item['Zona Horaria'] || item['Zona horaria'] || globalTz) : 0)));
-                
-                let y = dateObj.getFullYear(), m = String(dateObj.getMonth()+1).padStart(2,'0'), day = String(dateObj.getDate()).padStart(2,'0');
-                let fechaStr = `${y}-${m}-${day}`;
-                let h = dateObj.getHours();
+            let y = dateObj.getFullYear(), m = String(dateObj.getMonth()+1).padStart(2,'0'), day = String(dateObj.getDate()).padStart(2,'0');
+            let fechaStr = `${y}-${m}-${day}`;
+            let h = dateObj.getHours();
 
-                if (!botHist[fechaStr]) botHist[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 };
-                
-                if (key === 'stl') {
-                    let bMins = item['_stl_' + globalTz];
-                    if (bMins !== undefined && bMins !== null) {
-                        botHist[fechaStr].stlSum += bMins; botHist[fechaStr].stlCount++;
-                        if (fechaStr === todayStr && h >= 0 && h <= currentHourTz) { botHoy[h].stlSum += bMins; botHoy[h].stlCount++; }
-                    }
-                } else {
-                    botHist[fechaStr][key]++;
-                    if (fechaStr === todayStr && h >= 0 && h <= currentHourTz) botHoy[h][key]++;
+            if (!botHist[fechaStr]) botHist[fechaStr] = { leads: 0, contactados: 0, llamadas: 0, citas: 0, shows: 0, ventas: 0, stlSum: 0, stlCount: 0 };
+            
+            if (key === 'stl') {
+                let bMins = item['_stl_' + globalTz];
+                if (bMins !== undefined && bMins !== null) {
+                    botHist[fechaStr].stlSum += bMins; botHist[fechaStr].stlCount++;
+                    if (fechaStr === todayStr && h >= 0 && h <= currentHourTz) { botHoy[h].stlSum += bMins; botHoy[h].stlCount++; }
                 }
+            } else {
+                botHist[fechaStr][key]++;
+                if (fechaStr === todayStr && h >= 0 && h <= currentHourTz) botHoy[h][key]++;
             }
         });
     };
