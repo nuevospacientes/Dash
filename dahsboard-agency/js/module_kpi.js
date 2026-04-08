@@ -75,8 +75,50 @@ function renderizarVistaGeneral(dataFiltrada) {
     const showsNtRaw = dataFiltrada.showsNt || [];
     const adsRaw = dataFiltrada.ads || [];
 
-    const tLeads = leadsRaw.length;
-    
+    // 0. LEADS ÚNICOS (Atribución al último registro por clínica/formulario)
+    const leadsMap = new Map();
+    leadsRaw.forEach(lead => {
+        let num = String(lead['Numero'] || lead['Teléfono'] || lead['Telefono'] || lead['Phone'] || lead['Número'] || '').trim();
+        if (num !== '') {
+            // El último registro que entre con este número sobreescribirá al anterior
+            leadsMap.set(num, lead);
+        } else {
+            // Si por algún error el lead no tiene número, usamos un ID temporal para no perderlo
+            leadsMap.set('sin_num_' + Math.random(), lead);
+        }
+    });
+    const leadsUnicosList = Array.from(leadsMap.values());
+    const tLeads = leadsUnicosList.length;
+
+   // 0.5 LEADS GESTIONABLES (Calculando la fecha real de gestión)
+    const leadsGestionablesList = [];
+    leadsUnicosList.forEach(lead => {
+        let diaGestionableVal = String(lead['Dia lead gestionable'] || '').trim().toLowerCase();
+        
+        if (diaGestionableVal !== '') {
+            let fechaBase = lead['Fecha entrada lead'] || lead['Fecha Lead entra'] || '';
+            let diasASumar = 0;
+
+            if (diaGestionableVal.includes('+ 1') || diaGestionableVal.includes('+1')) diasASumar = 1;
+            if (diaGestionableVal.includes('+ 2') || diaGestionableVal.includes('+2')) diasASumar = 2;
+
+            if (diasASumar > 0 && typeof parseDateSpanish === 'function' && fechaBase) {
+                // Sumamos los días a la fecha base
+                let dateObj = parseDateSpanish(fechaBase, lead, 'Fecha entrada lead');
+                if (dateObj) {
+                    dateObj.setDate(dateObj.getDate() + diasASumar);
+                    // Guardamos esta nueva fecha calculada para que se vea en la tabla del modal
+                    lead['Fecha Lead Gestionable Calculada'] = dateObj.toLocaleDateString('es-ES');
+                }
+            } else {
+                lead['Fecha Lead Gestionable Calculada'] = diaGestionableVal.includes('fecha') ? fechaBase : diaGestionableVal;
+            }
+            
+            leadsGestionablesList.push(lead);
+        }
+    });
+    const tLeadsGestionables = leadsGestionablesList.length;
+   
     // 1. LEADS CONTACTADOS (Únicos por número, guardando la fila completa)
     const contactadosMap = new Map();
     contactadosRaw.forEach(c => {
@@ -97,12 +139,21 @@ function renderizarVistaGeneral(dataFiltrada) {
     
     const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
 
-    // 3. CITAS SEPARADAS (Nuevas vs Calendario)
-    const citasNuevas = citasGeneradasRaw.filter(c => {
+    // 3. CITAS SEPARADAS (Nuevas, Reprogramadas vs Calendario)
+    const citasNuevas = [];
+    const citasReprogramadasList = [];
+
+    citasGeneradasRaw.forEach(c => {
         let tipo = String(c['Tipo de cita'] || '').toLowerCase();
-        return !tipo.includes('reprogramada');
+        if (tipo.includes('reagenda') || tipo.includes('reagendamiento') || tipo.includes('reprogramada')) {
+            citasReprogramadasList.push(c);
+        } else {
+            citasNuevas.push(c);
+        }
     });
+
     const tCitasGeneradas = citasNuevas.length;
+    const tCitasReprogramadas = citasReprogramadasList.length;
     const tCitasCalendario = citasCalendarioRaw.length;
 
     // 4. SHOWS TOTALES (Suma de Shows regulares + Shows NT)
