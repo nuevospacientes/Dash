@@ -258,7 +258,9 @@ function renderizarVistaGeneral(dataFiltrada) {
         }
     };
 
-    setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, leadsRaw, 'Volumen de Leads', 'Fecha Entrada');
+    setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, leadsUnicosList, 'Volumen de Leads (Únicos)', 'Fecha Entrada');
+    setMetric('kpi-leads-gestionables', tLeadsGestionables, null, null, leadsGestionablesList, 'Leads Gestionables', 'Fecha Lead Gestionable Calculada');
+    setMetric('kpi-citas-reprog', tCitasReprogramadas, null, null, citasReprogramadasList, 'Citas Reprogramadas', 'Cita Programada en');
     setMetric('kpi-stl', stlDisplay, null, null, null, null, null);
     setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
     setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
