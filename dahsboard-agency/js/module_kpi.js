@@ -103,12 +103,19 @@ function renderizarVistaGeneral(dataFiltrada) {
             if (diaGestionableVal.includes('+ 2') || diaGestionableVal.includes('+2')) diasASumar = 2;
 
             if (diasASumar > 0 && typeof parseDateSpanish === 'function' && fechaBase) {
-                // Sumamos los días a la fecha base
-                let dateObj = parseDateSpanish(fechaBase, lead, 'Fecha entrada lead');
-                if (dateObj) {
-                    dateObj.setDate(dateObj.getDate() + diasASumar);
-                    // Guardamos esta nueva fecha calculada para que se vea en la tabla del modal
-                    lead['Fecha Lead Gestionable Calculada'] = dateObj.toLocaleDateString('es-ES');
+                // 1. Obtenemos el valor crudo
+                let rawDate = parseDateSpanish(fechaBase, lead, 'Fecha entrada lead');
+                if (rawDate) {
+                    // 2. Lo convertimos obligatoriamente a un objeto Date real
+                    let dateObj = new Date(rawDate);
+                    
+                    // 3. Verificamos que sea una fecha válida antes de operarla
+                    if (!isNaN(dateObj.getTime())) {
+                        dateObj.setDate(dateObj.getDate() + diasASumar);
+                        lead['Fecha Lead Gestionable Calculada'] = dateObj.toLocaleDateString('es-ES');
+                    } else {
+                        lead['Fecha Lead Gestionable Calculada'] = fechaBase;
+                    }
                 }
             } else {
                 lead['Fecha Lead Gestionable Calculada'] = diaGestionableVal.includes('fecha') ? fechaBase : diaGestionableVal;
@@ -364,7 +371,10 @@ window.abrirModalLista = function(titulo, lista, tituloColFecha) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No hay registros para mostrar.</td></tr>';
     } else {
         lista.forEach(v => {
-            let fecha = v['Fecha entrada lead'] || v['Fecha Lead entra'] || v['Fecha 1er llamada'] || v['Fecha last call'] || v['Cita generada'] || v['Fecha Visita'] || v['Cita Programada en'] || '-';
+            // CORRECCIÓN: Priorizamos la lectura dinámica de la columna que pasamos desde la tarjeta
+            let fechaDinamica = tituloColFecha ? v[tituloColFecha] : null;
+            let fecha = fechaDinamica || v['Fecha entrada lead'] || v['Fecha Lead entra'] || v['Fecha 1er llamada'] || v['Fecha last call'] || v['Cita generada'] || v['Fecha Visita'] || v['Cita Programada en'] || '-';
+            
             let nombre = v['Nombre'] || v['First Name'] || v['Lead Name'] || 'Desconocido';
             let telefono = v['Numero'] || v['Teléfono'] || v['Telefono'] || v['Phone'] || v['Número'] || '-';
             let campana = v['Campaña'] || '-';
