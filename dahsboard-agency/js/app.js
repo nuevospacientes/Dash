@@ -305,35 +305,31 @@ function procesarYRenderizar() {
     const campañasDisponibles = new Set();
     const operadoresDisponibles = new Set();
 
-    // Buscar opciones activas en el rango de fechas
     window.AppData.raw.leads.forEach(r => { if(isDateValid(r, 'Fecha entrada lead')) campañasDisponibles.add(r['Campaña']); });
-    
     if(window.AppData.raw.contactados) {
         window.AppData.raw.contactados.forEach(r => { 
-            let colDate = r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : (r['Fecha Lead entra'] ? 'Fecha Lead entra' : 'Fecha entrada lead');
+            let colDate = r['Fecha last call'] ? 'Fecha last call' : (r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : 'Fecha Lead entra');
             if(isDateValid(r, colDate)) campañasDisponibles.add(r['Campaña']); 
         });
     }
-    
     if(window.AppData.raw.llamadas) {
         window.AppData.raw.llamadas.forEach(r => { 
             let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
             if(isDateValid(r, col)) campañasDisponibles.add(r['Campaña']); 
         });
     }
-    
     window.AppData.raw.citas.forEach(r => {
         if(isDateValid(r, 'Cita generada')) {
             campañasDisponibles.add(r['Campaña']);
             operadoresDisponibles.add(r['Operador']);
         }
     });
-
     window.AppData.raw.shows.forEach(r => { if(isDateValid(r, 'Fecha Visita')) campañasDisponibles.add(r['Campaña']); });
 
     const campFilter = document.getElementById('global-campaign-filter');
     const opFilter = document.getElementById('global-operator-filter');
-    const prevCamp = campFilter.value; const prevOp = opFilter.value;
+    const prevCamp = campFilter ? campFilter.value : 'all'; 
+    const prevOp = opFilter ? opFilter.value : 'all';
 
     let campHTML = '<option value="all" selected>Todas las Campañas</option>';
     let opHTML = '<option value="all" selected>Todos los Operadores</option>';
@@ -341,16 +337,15 @@ function procesarYRenderizar() {
     Array.from(campañasDisponibles).sort().forEach(camp => { campHTML += `<option value="${camp}">${camp}</option>`; });
     Array.from(operadoresDisponibles).sort().forEach(op => { opHTML += `<option value="${op}">${op}</option>`; });
 
-    campFilter.innerHTML = campHTML;
-    opFilter.innerHTML = opHTML;
+    if(campFilter) campFilter.innerHTML = campHTML;
+    if(opFilter) opFilter.innerHTML = opHTML;
 
-    campFilter.value = campañasDisponibles.has(prevCamp) ? prevCamp : 'all';
-    opFilter.value = operadoresDisponibles.has(prevOp) ? prevOp : 'all';
+    if(campFilter) campFilter.value = campañasDisponibles.has(prevCamp) ? prevCamp : 'all';
+    if(opFilter) opFilter.value = operadoresDisponibles.has(prevOp) ? prevOp : 'all';
 
-    const finalCampaignSelected = campFilter.value;
-    const finalOperatorSelected = opFilter.value;
+    const finalCampaignSelected = campFilter ? campFilter.value : 'all';
+    const finalOperatorSelected = opFilter ? opFilter.value : 'all';
 
-    // Filtros Ultra-Rápidos usando comparación exacta (==)
     const cumpleFiltroFinal = (row, colDate, isOpRelevant = false) => {
         if (finalCampaignSelected !== 'all' && row['Campaña'] !== finalCampaignSelected) return false;
         if (isOpRelevant && finalOperatorSelected !== 'all' && row['Operador'] !== finalOperatorSelected) return false;
@@ -358,7 +353,6 @@ function procesarYRenderizar() {
     };
 
     const cumpleFiltroAds = (row) => {
-        // Gracias al scrapper de la Fase 3, aquí ya tenemos 'OfficialCampaign' curada.
         if (finalCampaignSelected !== 'all' && row['OfficialCampaign'] !== finalCampaignSelected) return false;
         if (start !== null && end !== null && row['Day']) {
             let rowTime = new Date(row['Day'] + 'T00:00:00').getTime();
@@ -366,6 +360,7 @@ function procesarYRenderizar() {
         }
         return true;
     };
+
     // 1. FILTRADO BÁSICO (Extrae la data cruda aplicando fechas, campañas y operadores)
     const baseLeads = window.AppData.raw.leads.filter(r => cumpleFiltroFinal(r, 'Fecha entrada lead', false));
     const baseContactados = window.AppData.raw.contactados.filter(r => {
@@ -379,7 +374,6 @@ function procesarYRenderizar() {
     const baseCitas = window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true));
 
     // 2. ÚNICA FUENTE DE VERDAD (Deduplicación Global)
-    // Leads Únicos
     const leadsMap = new Map();
     baseLeads.forEach(lead => {
         let num = String(lead['Numero'] || lead['Teléfono'] || lead['Telefono'] || lead['Phone'] || lead['Número'] || '').trim();
@@ -388,7 +382,6 @@ function procesarYRenderizar() {
     });
     const leadsUnicos = Array.from(leadsMap.values());
 
-    // Leads Gestionables
     const leadsGestionablesList = [];
     leadsUnicos.forEach(lead => {
         let diaGestionableVal = String(lead['Dia lead gestionable'] || '').trim().toLowerCase();
@@ -416,7 +409,6 @@ function procesarYRenderizar() {
         }
     });
 
-    // Contactados y Llamadas Únicas
     const contactadosMap = new Map();
     baseContactados.forEach(c => {
         let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
@@ -429,11 +421,13 @@ function procesarYRenderizar() {
         if (num !== '' && !llamadasMap.has(num)) llamadasMap.set(num, c);
     });
 
-    // Separación de Citas Nuevas vs Reprogramadas
+    // Separación de Citas Nuevas vs Reprogramadas (Con variables de encabezado cubiertas)
     const citasNuevas = [];
     const citasReprogramadas = [];
     baseCitas.forEach(c => {
-        let tipo = String(c['Tipo de cita'] || '').toLowerCase();
+        // Buscamos cualquier variación del encabezado "Tipo de Cita"
+        let tipo = String(c['Tipo de cita'] || c['Tipo de Cita'] || c['TIpo de Cita'] || c['Tipo De Cita'] || '').toLowerCase();
+        
         if (tipo.includes('reagenda') || tipo.includes('reagendamiento') || tipo.includes('reprogramada')) {
             citasReprogramadas.push(c);
         } else {
@@ -443,12 +437,12 @@ function procesarYRenderizar() {
 
     // 3. EMPAQUETADO FINAL (Distribución a todos los módulos)
     const dataFiltrada = {
-        leadsRaw: baseLeads, // Data cruda con duplicados (útil internamente para cruces)
+        leadsRaw: baseLeads, 
         citasRaw: baseCitas, 
-        marcasDeLlamadaRaw: baseContactados, // <-- IMPORTANTE: Necesario para que el Speed to Lead calcule todas las marcas
+        marcasDeLlamadaRaw: baseContactados,
         llamadasRaw: baseLlamadas,
 
-        // DATA LIMPIA Y OFICIAL (Esta es la que usarán todos los módulos por defecto)
+        // DATA LIMPIA Y OFICIAL
         leads: leadsUnicos,
         leadsGestionables: leadsGestionablesList,
         contactados: Array.from(contactadosMap.values()),
