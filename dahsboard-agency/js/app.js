@@ -366,28 +366,66 @@ function procesarYRenderizar() {
         }
         return true;
     };
+        // 1. FILTRADO BÁSICO (Fechas, Campañas y Operadores)
+    const baseLeads = window.AppData.raw.leads.filter(r => cumpleFiltroFinal(r, 'Fecha entrada lead', false));
+    const baseContactados = window.AppData.raw.contactados.filter(r => {
+        let colDate = r['Fecha last call'] ? 'Fecha last call' : (r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : 'Fecha Lead entra');
+        return cumpleFiltroFinal(r, colDate, false);
+    }); 
+    const baseLlamadas = window.AppData.raw.llamadas.filter(r => {
+        let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
+        return cumpleFiltroFinal(r, col, false);
+    });
+    const baseCitas = window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true));
 
+    // 2. ÚNICA FUENTE DE VERDAD (Deduplicación global para todos los módulos)
+    const leadsMap = new Map();
+    baseLeads.forEach(lead => {
+        let num = String(lead['Numero'] || lead['Teléfono'] || lead['Phone'] || '').trim();
+        if (num !== '') leadsMap.set(num, lead);
+        else leadsMap.set('sin_num_' + Math.random(), lead);
+    });
+    const leadsUnicos = Array.from(leadsMap.values());
+
+    const contactadosMap = new Map();
+    baseContactados.forEach(c => {
+        let num = String(c['Numero'] || c['Teléfono'] || c['Phone'] || '').trim();
+        if (num !== '' && !contactadosMap.has(num)) contactadosMap.set(num, c);
+    });
+
+    const llamadasMap = new Map();
+    baseLlamadas.forEach(c => {
+        let num = String(c['Numero'] || c['Teléfono'] || c['Phone'] || '').trim();
+        if (num !== '' && !llamadasMap.has(num)) llamadasMap.set(num, c);
+    });
+
+    const citasNuevas = [];
+    const citasReprogramadas = [];
+    baseCitas.forEach(c => {
+        let tipo = String(c['Tipo de cita'] || '').toLowerCase();
+        if (tipo.includes('reagenda') || tipo.includes('reagendamiento') || tipo.includes('reprogramada')) {
+            citasReprogramadas.push(c);
+        } else {
+            citasNuevas.push(c);
+        }
+    });
+
+    // 3. EMPAQUETADO FINAL (Se envía a todos los módulos)
     const dataFiltrada = {
-        leads: window.AppData.raw.leads.filter(r => cumpleFiltroFinal(r, 'Fecha entrada lead', false)),
+        // Data pura (por si algún gráfico histórico lo necesita)
+        leadsRaw: baseLeads,
+        citasRaw: baseCitas,
         
-        // Usar Last Call para la atribución correcta de seguimiento
-        contactados: window.AppData.raw.contactados.filter(r => {
-            let colDate = r['Fecha last call'] ? 'Fecha last call' : (r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : 'Fecha Lead entra');
-            return cumpleFiltroFinal(r, colDate, false);
-        }), 
-        
-        llamadas: window.AppData.raw.llamadas.filter(r => {
-            let col = r['Fecha last call'] ? 'Fecha last call' : 'Fecha Lead entra';
-            return cumpleFiltroFinal(r, col, false);
-        }),
-        
-        citas: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true)),
-        citasGeneradas: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true)),
+        // DATA LIMPIA Y OFICIAL (Esta es la que usarán todos)
+        leads: leadsUnicos,
+        contactados: Array.from(contactadosMap.values()),
+        llamadas: Array.from(llamadasMap.values()),
+        citas: citasNuevas, // Citas limpias de reprogramaciones
+        citasReprog: citasReprogramadas,
         citasCalendario: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita Programada en', true)),
         
         shows: window.AppData.raw.shows.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)),
         showsNt: window.AppData.raw.showsNt ? window.AppData.raw.showsNt.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)) : [],
-        
         noShows: window.AppData.raw.noShows.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)),
         cancelados: window.AppData.raw.cancelados.filter(r => cumpleFiltroFinal(r, 'Fecha Visita', true)),
         ads: (window.AppData.raw.ads || []).filter(cumpleFiltroAds),
