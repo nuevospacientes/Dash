@@ -108,14 +108,6 @@
                         <input type="number" id="meta-ads" value="3000">
                     </div>
                     <div class="input-group">
-                        <label>Meta de Facturación ($)</label>
-                        <input type="number" id="meta-facturacion" value="15000">
-                    </div>
-                    <div class="input-group">
-                        <label>Meta de Citas / Agendas</label>
-                        <input type="number" id="meta-citas" value="100">
-                    </div>
-                    <div class="input-group">
                         <label>Speed to Lead Objetivo (Minutos)</label>
                         <input type="number" id="meta-stl" value="5">
                     </div>
@@ -267,19 +259,12 @@
             
             <section id="view-general" class="view-section active">
                 
-                <div class="grid-cards" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+                <div class="grid-cards" style="grid-template-columns: 1fr; margin-bottom: 20px;">
                     <div class="kpi-card">
                         <div class="metric-title">Inversión en Ads / Presupuesto</div>
                         <div class="metric-value text-success">$0.00 / $0.00</div>
                         <div class="progress-bar-bg mt-2">
                             <div class="progress-bar-fill bg-success" style="width: 0%;"></div>
-                        </div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="metric-title">Progreso de Citas Agendadas</div>
-                        <div class="metric-value">0 / 100</div>
-                        <div class="progress-bar-bg mt-2">
-                            <div class="progress-bar-fill bg-primary" style="width: 0%;"></div>
                         </div>
                     </div>
                 </div>
@@ -294,12 +279,6 @@
                         <div class="metric-subtitle" id="kpi-cpl">CPL Estimado: $0.00</div>
                     </div>
 
-                    <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--brand-primary); background: linear-gradient(180deg, rgba(59, 107, 250, 0.05), transparent);">
-                        <div class="metric-title text-primary">Leads Gestionables</div>
-                        <div class="metric-value" id="kpi-leads-gestionables">0</div>
-                        <div class="metric-subtitle">Dentro de horario</div>
-                    </div>
-
                     <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--accent-warning);">
                         <div class="metric-title">Speed To Lead Promedio</div>
                         <div class="metric-value" id="kpi-stl">0 min</div>
@@ -310,12 +289,6 @@
                         <div class="metric-title">Leads Contactados</div>
                         <div class="metric-value" id="kpi-contactados">0</div>
                         <div class="metric-subtitle" id="kpi-contact-rate">Contact Rate: 0%</div>
-                    </div>
-
-                    <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid #bc13fe;">
-                        <div class="metric-title">Llamadas Conectadas</div>
-                        <div class="metric-value" id="kpi-llamadas">0</div>
-                        <div class="metric-subtitle" id="kpi-conectividad">Conectividad: 0%</div>
                     </div>
 
                     <div class="kpi-card" style="flex: 1; min-width: 22%; border-top: 4px solid var(--brand-primary);">
@@ -593,12 +566,10 @@
                                             <th data-sort="name" style="cursor:pointer; color:var(--text-main);">Operador <i class="fa-solid fa-sort"></i></th>
                                             <th data-sort="citas" style="cursor:pointer; color:var(--text-main);">Citas <i class="fa-solid fa-sort"></i></th>
                                             <th data-sort="shows" style="cursor:pointer; color:var(--text-main);">Shows <i class="fa-solid fa-sort"></i></th>
-                                            <th data-sort="sumaStl" style="cursor:pointer; color:var(--text-main);">Speed to Lead <i class="fa-solid fa-sort"></i></th>
-                                            <th data-sort="llamadas" style="cursor:pointer; color:var(--text-main);">Llamadas <i class="fa-solid fa-sort"></i></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Esperando datos...</td></tr>
+                                        <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Esperando datos...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -662,28 +633,6 @@
                             </div>
                             
                         </div>
-                    </div>
-                </div>
-
-                <div class="kpi-card mt-4" style="margin-top: 20px;">
-                    <h3 class="chart-title mb-4">📊 Desglose de Rendimiento por Cliente</h3>
-                    <div class="table-responsive">
-                        <table class="data-table" id="tracker-breakdown-table">
-                            <thead>
-                                <tr>
-                                    <th data-sort="name" style="cursor:pointer; color:var(--text-main);">Campaña / Cliente <i class="fa-solid fa-sort"></i></th>
-                                    <th data-sort="opsList" style="cursor:pointer; color:var(--text-main);">Operadores <i class="fa-solid fa-sort"></i></th>
-                                    <th data-sort="inv" style="cursor:pointer; color:var(--text-main);">Inversión <i class="fa-solid fa-sort"></i></th>
-                                    <th data-sort="leads" style="cursor:pointer; color:var(--text-main);">Leads <i class="fa-solid fa-sort"></i></th>
-                                    <th data-sort="contactados" style="cursor:pointer; color:var(--text-main);">Leads Contactados <i class="fa-solid fa-sort"></i></th>
-                                    <th data-sort="citas" style="cursor:pointer; color:var(--text-main);">Citas Agendadas <i class="fa-solid fa-sort"></i></th>
-                                    <th data-sort="shows" style="cursor:pointer; color:var(--text-main);">Shows <i class="fa-solid fa-sort"></i></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Esperando datos...</td></tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </section>
