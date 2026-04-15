@@ -55,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             document.getElementById('meta-ads').value = metas.ads;
             document.getElementById('meta-facturacion').value = metas.facturacion;
-            document.getElementById('meta-citas').value = metas.citas;
             document.getElementById('meta-stl').value = metas.stl;
             document.getElementById('meta-llamadas-agente').value = metas.llamadas;
         });
@@ -72,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const metas = {
                 ads: parseFloat(document.getElementById('meta-ads').value) || 0,
                 facturacion: parseFloat(document.getElementById('meta-facturacion').value) || 0,
-                citas: parseInt(document.getElementById('meta-citas').value) || 0,
                 stl: parseInt(document.getElementById('meta-stl').value) || 0,
                 llamadas: parseInt(document.getElementById('meta-llamadas-agente').value) || 0
             };
