@@ -36,8 +36,9 @@ window.guardarTrackerSettings = function() {
 // -----------------------------------------
 
 function renderizarCallTracker(dataFiltrada) {
-    const llamadas = dataFiltrada.llamadas || []; // Conectadas (~50)
-    const contactados = dataFiltrada.contactados || []; // Emitidas (~484)
+    // TRACKER: Usamos la data "Raw" porque evaluamos acciones/esfuerzo, no personas únicas.
+    const llamadas = dataFiltrada.llamadasRaw || []; 
+    const contactados = dataFiltrada.marcasDeLlamadaRaw || [];
     const leads = dataFiltrada.leads || [];
     const citas = dataFiltrada.citas || [];
     const shows = dataFiltrada.shows || [];
