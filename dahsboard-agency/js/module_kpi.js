@@ -266,12 +266,9 @@ function renderizarVistaGeneral(dataFiltrada) {
     };
 
     setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, leadsUnicosList, 'Volumen de Leads (Únicos)', 'Fecha Entrada');
-    setMetric('kpi-leads-gestionables', tLeadsGestionables, null, null, leadsGestionablesList, 'Leads Gestionables', 'Fecha Lead Gestionable Calculada');
     setMetric('kpi-citas-reprog', tCitasReprogramadas, null, null, citasReprogramadasList, 'Citas Reprogramadas', 'Cita Programada en');
     setMetric('kpi-stl', stlDisplay, null, null, null, null, null);
-    setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
-    setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
-    
+    setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');    
     setMetric('kpi-citas-gen', tCitasGeneradas, null, null, citasNuevas, 'Citas Generadas (Nuevas)', 'Fecha Creación');
     const brEl = document.getElementById('kpi-booking-rate'); if(brEl) brEl.innerText = `${bookingRate}%`;
     const cpaEl = document.getElementById('kpi-cpa-cita'); if(cpaEl) cpaEl.innerText = cpa_citas;
@@ -283,14 +280,11 @@ function renderizarVistaGeneral(dataFiltrada) {
     setMetric('kpi-ventas', tVentas, 'kpi-win-rate', `Win Rate: ${winRate}% <br> Costo x Venta: $${costo_venta}`, ventas, 'Ventas Cerradas', 'Fecha Visita');
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
-    const progCitas = metas.citas > 0 ? (tCitasGeneradas / metas.citas) * 100 : 0;
-    const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
-    if(topCards.length >= 2) {
-        topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${metas.ads.toLocaleString('en-US')}`;
+   const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
+   if(topCards.length >= 1) {
+       topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${(metas.ads || 0).toLocaleString('en-US')}`;
         topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progAds, 100)}%`;
-        topCards[1].querySelector('.metric-value').innerText = `${tCitasGeneradas} / ${metas.citas}`;
-        topCards[1].querySelector('.progress-bar-fill').style.width = `${Math.min(progCitas, 100)}%`;
-    }
+   }
 
     // DISTRIBUCIÓN DE PAGOS
     const paymentContainer = document.getElementById('payment-distribution-container');
