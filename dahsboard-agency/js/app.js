@@ -366,7 +366,7 @@ function procesarYRenderizar() {
         }
         return true;
     };
-        // 1. FILTRADO BÁSICO (Fechas, Campañas y Operadores)
+    // 1. FILTRADO BÁSICO (Extrae la data cruda aplicando fechas, campañas y operadores)
     const baseLeads = window.AppData.raw.leads.filter(r => cumpleFiltroFinal(r, 'Fecha entrada lead', false));
     const baseContactados = window.AppData.raw.contactados.filter(r => {
         let colDate = r['Fecha last call'] ? 'Fecha last call' : (r['Fecha 1er llamada'] ? 'Fecha 1er llamada' : 'Fecha Lead entra');
@@ -378,27 +378,58 @@ function procesarYRenderizar() {
     });
     const baseCitas = window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita generada', true));
 
-    // 2. ÚNICA FUENTE DE VERDAD (Deduplicación global para todos los módulos)
+    // 2. ÚNICA FUENTE DE VERDAD (Deduplicación Global)
+    // Leads Únicos
     const leadsMap = new Map();
     baseLeads.forEach(lead => {
-        let num = String(lead['Numero'] || lead['Teléfono'] || lead['Phone'] || '').trim();
+        let num = String(lead['Numero'] || lead['Teléfono'] || lead['Telefono'] || lead['Phone'] || lead['Número'] || '').trim();
         if (num !== '') leadsMap.set(num, lead);
         else leadsMap.set('sin_num_' + Math.random(), lead);
     });
     const leadsUnicos = Array.from(leadsMap.values());
 
-    const contactadosMap = new Map();
-    baseContactados.forEach(c => {
-        let num = String(c['Numero'] || c['Teléfono'] || c['Phone'] || '').trim();
-        if (num !== '' && !contactadosMap.has(num)) contactadosMap.set(num, c);
+    // Leads Gestionables
+    const leadsGestionablesList = [];
+    leadsUnicos.forEach(lead => {
+        let diaGestionableVal = String(lead['Dia lead gestionable'] || '').trim().toLowerCase();
+        if (diaGestionableVal !== '') {
+            let fechaBase = lead['Fecha entrada lead'] || lead['Fecha Lead entra'] || '';
+            let diasASumar = 0;
+            if (diaGestionableVal.includes('+ 1') || diaGestionableVal.includes('+1')) diasASumar = 1;
+            if (diaGestionableVal.includes('+ 2') || diaGestionableVal.includes('+2')) diasASumar = 2;
+
+            if (diasASumar > 0 && typeof parseDateSpanish === 'function' && fechaBase) {
+                let rawDate = parseDateSpanish(fechaBase, lead, 'Fecha entrada lead');
+                if (rawDate) {
+                    let dateObj = new Date(rawDate);
+                    if (!isNaN(dateObj.getTime())) {
+                        dateObj.setDate(dateObj.getDate() + diasASumar);
+                        lead['Fecha Lead Gestionable Calculada'] = dateObj.toLocaleDateString('es-ES');
+                    } else {
+                        lead['Fecha Lead Gestionable Calculada'] = fechaBase;
+                    }
+                }
+            } else {
+                lead['Fecha Lead Gestionable Calculada'] = diaGestionableVal.includes('fecha') ? fechaBase : diaGestionableVal;
+            }
+            leadsGestionablesList.push(lead);
+        }
     });
 
+    // Contactados y Llamadas Únicas
+    const contactadosMap = new Map();
+    baseContactados.forEach(c => {
+        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
+        if (num !== '' && !contactadosMap.has(num)) contactadosMap.set(num, c);
+    });
+    
     const llamadasMap = new Map();
     baseLlamadas.forEach(c => {
-        let num = String(c['Numero'] || c['Teléfono'] || c['Phone'] || '').trim();
+        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
         if (num !== '' && !llamadasMap.has(num)) llamadasMap.set(num, c);
     });
 
+    // Separación de Citas Nuevas vs Reprogramadas
     const citasNuevas = [];
     const citasReprogramadas = [];
     baseCitas.forEach(c => {
@@ -410,17 +441,18 @@ function procesarYRenderizar() {
         }
     });
 
-    // 3. EMPAQUETADO FINAL (Se envía a todos los módulos)
+    // 3. EMPAQUETADO FINAL (Distribución a todos los módulos)
     const dataFiltrada = {
-        // Data pura (por si algún gráfico histórico lo necesita)
-        leadsRaw: baseLeads,
-        citasRaw: baseCitas,
-        
-        // DATA LIMPIA Y OFICIAL (Esta es la que usarán todos)
+        leadsRaw: baseLeads, // Data cruda con duplicados (útil internamente para cruces)
+        citasRaw: baseCitas, 
+        marcasDeLlamadaRaw: baseContactados, // <-- IMPORTANTE: Necesario para que el Speed to Lead calcule todas las marcas
+
+        // DATA LIMPIA Y OFICIAL (Esta es la que usarán todos los módulos por defecto)
         leads: leadsUnicos,
+        leadsGestionables: leadsGestionablesList,
         contactados: Array.from(contactadosMap.values()),
         llamadas: Array.from(llamadasMap.values()),
-        citas: citasNuevas, // Citas limpias de reprogramaciones
+        citas: citasNuevas,
         citasReprog: citasReprogramadas,
         citasCalendario: window.AppData.raw.citas.filter(r => cumpleFiltroFinal(r, 'Cita Programada en', true)),
         
