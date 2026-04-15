@@ -76,11 +76,9 @@ function renderizarVistaGeneral(dataFiltrada) {
     const showsRaw = dataFiltrada.shows || [];
     const showsNtRaw = dataFiltrada.showsNt || [];
     const adsRaw = dataFiltrada.ads || [];
-    
-    // Data especial cruda requerida para el Speed to Lead
     const marcasDeLlamadaRaw = dataFiltrada.marcasDeLlamadaRaw || [];
 
-    // 2. CONTEOS OFICIALES
+    // 2. CONTEOS OFICIALES (Sin usar forEach repetidos)
     const tLeads = leadsUnicosList.length;
     const tLeadsGestionables = leadsGestionablesList.length;
     const tContactados = leadsContactadosList.length;
@@ -172,7 +170,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     const cpa_citas_cal = tCitasCalendario > 0 ? (inversionActual / tCitasCalendario).toFixed(2) : 0;
     const costo_venta = tVentas > 0 ? (inversionActual / tVentas).toFixed(2) : 0;
 
-    // 6. INYECCIÓN AL DOM (Vista General)
+    // 6. INYECCIÓN AL DOM
     const setMetric = (id, val, subtitleId, subtitleVal, clickData, clickTitle, clickDateCol) => {
         const el = document.getElementById(id);
         if(el) {
