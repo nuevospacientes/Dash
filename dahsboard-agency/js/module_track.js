@@ -237,7 +237,8 @@ function renderizarCallTracker(dataFiltrada) {
                 let uniqCont = row.contactadosSet.size;
                 tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td>${row.leads}</td> <td><span class="text-warning">${row.leads>0?((uniqCont/row.leads)*100).toFixed(1):0}%</span></td> <td><span class="text-success">${row.citas} (${row.leads>0?((row.citas/row.leads)*100).toFixed(1):0}%)</span></td> <td>${row.stlCount>0?stlTxt:'-'}</td>`;
             } else {
-                tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td><span class="text-success">${row.citas}</span></td> <td>${row.shows}</td> <td style="color: var(--text-muted);">${row.stlCount>0?stlTxt:'-'}</td> <td style="color: var(--text-muted);">${row.llamadas}</td>`;
+                // Solo inyectamos 4 columnas: Posición, Nombre, Citas y Shows
+                tr.innerHTML = `<td><strong>${pos}</strong></td> <td>${row.name}</td> <td><span class="text-success">${row.citas}</span></td> <td>${row.shows}</td>`;
             }
             tbody.appendChild(tr);
         });
