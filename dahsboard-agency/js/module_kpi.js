@@ -65,124 +65,48 @@ function getBusinessMinutes(dateStart, dateEnd) {
 }
 
 function renderizarVistaGeneral(dataFiltrada) {
-    // ESCUDOS: Evitan el quiebre si la hoja llega vacía o falla la red
-    const leadsRaw = dataFiltrada.leads || [];
-    const contactadosRaw = dataFiltrada.contactados || [];
-    const llamadasRaw = dataFiltrada.llamadas || [];
-    const citasGeneradasRaw = dataFiltrada.citasGeneradas || [];
+    // 1. OBTENER LA DATA YA LIMPIA DESDE APP.JS
+    const leadsUnicosList = dataFiltrada.leads || [];
+    const leadsGestionablesList = dataFiltrada.leadsGestionables || [];
+    const leadsContactadosList = dataFiltrada.contactados || [];
+    const llamadasConectadasList = dataFiltrada.llamadas || [];
+    const citasNuevas = dataFiltrada.citas || [];
+    const citasReprogramadasList = dataFiltrada.citasReprog || [];
     const citasCalendarioRaw = dataFiltrada.citasCalendario || [];
     const showsRaw = dataFiltrada.shows || [];
     const showsNtRaw = dataFiltrada.showsNt || [];
     const adsRaw = dataFiltrada.ads || [];
-
-    // 0. LEADS ÚNICOS (Atribución al último registro por clínica/formulario)
-    const leadsMap = new Map();
-    leadsRaw.forEach(lead => {
-        let num = String(lead['Numero'] || lead['Teléfono'] || lead['Telefono'] || lead['Phone'] || lead['Número'] || '').trim();
-        if (num !== '') {
-            // El último registro que entre con este número sobreescribirá al anterior
-            leadsMap.set(num, lead);
-        } else {
-            // Si por algún error el lead no tiene número, usamos un ID temporal para no perderlo
-            leadsMap.set('sin_num_' + Math.random(), lead);
-        }
-    });
-    const leadsUnicosList = Array.from(leadsMap.values());
-    const tLeads = leadsUnicosList.length;
-
-   // 0.5 LEADS GESTIONABLES (Calculando la fecha real de gestión)
-    const leadsGestionablesList = [];
-    leadsUnicosList.forEach(lead => {
-        let diaGestionableVal = String(lead['Dia lead gestionable'] || '').trim().toLowerCase();
-        
-        if (diaGestionableVal !== '') {
-            let fechaBase = lead['Fecha entrada lead'] || lead['Fecha Lead entra'] || '';
-            let diasASumar = 0;
-
-            if (diaGestionableVal.includes('+ 1') || diaGestionableVal.includes('+1')) diasASumar = 1;
-            if (diaGestionableVal.includes('+ 2') || diaGestionableVal.includes('+2')) diasASumar = 2;
-
-            if (diasASumar > 0 && typeof parseDateSpanish === 'function' && fechaBase) {
-                // 1. Obtenemos el valor crudo
-                let rawDate = parseDateSpanish(fechaBase, lead, 'Fecha entrada lead');
-                if (rawDate) {
-                    // 2. Lo convertimos obligatoriamente a un objeto Date real
-                    let dateObj = new Date(rawDate);
-                    
-                    // 3. Verificamos que sea una fecha válida antes de operarla
-                    if (!isNaN(dateObj.getTime())) {
-                        dateObj.setDate(dateObj.getDate() + diasASumar);
-                        lead['Fecha Lead Gestionable Calculada'] = dateObj.toLocaleDateString('es-ES');
-                    } else {
-                        lead['Fecha Lead Gestionable Calculada'] = fechaBase;
-                    }
-                }
-            } else {
-                lead['Fecha Lead Gestionable Calculada'] = diaGestionableVal.includes('fecha') ? fechaBase : diaGestionableVal;
-            }
-            
-            leadsGestionablesList.push(lead);
-        }
-    });
-    const tLeadsGestionables = leadsGestionablesList.length;
-   
-    // 1. LEADS CONTACTADOS (Únicos por número, guardando la fila completa)
-    const contactadosMap = new Map();
-    contactadosRaw.forEach(c => {
-        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-        if (num !== '' && !contactadosMap.has(num)) contactadosMap.set(num, c);
-    });
-    const leadsContactadosList = Array.from(contactadosMap.values());
-    const tContactados = leadsContactadosList.length;
-
-    // 2. LLAMADAS CONECTADAS (Únicos por número, guardando la fila completa)
-    const llamadasMap = new Map();
-    llamadasRaw.forEach(c => {
-        let num = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
-        if (num !== '' && !llamadasMap.has(num)) llamadasMap.set(num, c);
-    });
-    const llamadasConectadasList = Array.from(llamadasMap.values());
-    const tLlamadasConectadas = llamadasConectadasList.length;
     
-    const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
+    // Data especial cruda requerida para el Speed to Lead
+    const marcasDeLlamadaRaw = dataFiltrada.marcasDeLlamadaRaw || [];
 
-    // 3. CITAS SEPARADAS (Nuevas, Reprogramadas vs Calendario)
-    const citasNuevas = [];
-    const citasReprogramadasList = [];
-
-    citasGeneradasRaw.forEach(c => {
-        let tipo = String(c['Tipo de cita'] || '').toLowerCase();
-        if (tipo.includes('reagenda') || tipo.includes('reagendamiento') || tipo.includes('reprogramada')) {
-            citasReprogramadasList.push(c);
-        } else {
-            citasNuevas.push(c);
-        }
-    });
-
+    // 2. CONTEOS OFICIALES
+    const tLeads = leadsUnicosList.length;
+    const tLeadsGestionables = leadsGestionablesList.length;
+    const tContactados = leadsContactadosList.length;
+    const tLlamadasConectadas = llamadasConectadasList.length;
     const tCitasGeneradas = citasNuevas.length;
     const tCitasReprogramadas = citasReprogramadasList.length;
     const tCitasCalendario = citasCalendarioRaw.length;
 
-    // 4. SHOWS TOTALES (Suma de Shows regulares + Shows NT)
     const todosLosShows = [...showsRaw, ...showsNtRaw];
     const tShows = todosLosShows.length;
-    
-    // 5. VENTAS CERRADAS 
     const ventas = showsRaw;
     const tVentas = ventas.length;
 
-    // Ratios del Embudo
+    // 3. RATIOS DEL EMBUDO
+    const conectividad = tContactados > 0 ? ((tLlamadasConectadas / tContactados) * 100).toFixed(1) : 0;
     const contactRate = tLeads > 0 ? ((tContactados / tLeads) * 100).toFixed(1) : 0;
     const bookingRate = tLeads > 0 ? ((tCitasGeneradas / tLeads) * 100).toFixed(1) : 0;
     const showRate = tCitasCalendario > 0 ? ((tShows / tCitasCalendario) * 100).toFixed(1) : 0;
     const winRate = tShows > 0 ? ((tVentas / tShows) * 100).toFixed(1) : 0;
 
-    // --- CÁLCULO DEL SPEED TO LEAD ---
+    // 4. CÁLCULO DEL SPEED TO LEAD (Usando marcas puras para exactitud)
     let stlMap = {}; 
     const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
     const globalOffset = typeof getTzOffsetMins === 'function' ? getTzOffsetMins(globalTz) : 0;
 
-    contactadosRaw.forEach(c => {
+    marcasDeLlamadaRaw.forEach(c => {
         let id = String(c['Numero'] || c['Teléfono'] || c['Telefono'] || c['Phone'] || c['Número'] || '').trim();
         if (id === '') return;
 
@@ -201,7 +125,6 @@ function renderizarVistaGeneral(dataFiltrada) {
                 let tLlamada = typeof parseDateSpanish === 'function' ? parseDateSpanish(fLlamada, c, 'Fecha 1er llamada') : null;
                 
                 if (tEntrada && tLlamada) {
-                    // CEREBRO AM/PM INTEGRADO
                     let parseTime = (str) => { 
                         let tStr = String(str).trim().toLowerCase();
                         let isPM = tStr.includes('pm'), isAM = tStr.includes('am');
@@ -236,6 +159,7 @@ function renderizarVistaGeneral(dataFiltrada) {
     let avgStlMinutes = validStlCount > 0 ? Math.round(totalMinutes / validStlCount) : 0;
     let stlDisplay = avgStlMinutes < 60 ? `${avgStlMinutes} min` : `${Math.floor(avgStlMinutes/60)}h ${avgStlMinutes%60}m`;
 
+    // 5. CÁLCULOS FINANCIEROS
     const metas = JSON.parse(localStorage.getItem('np_metas')) || { ads: 3000, citas: 100 };
     let inversionActual = 0;
     adsRaw.forEach(ad => {
@@ -243,13 +167,12 @@ function renderizarVistaGeneral(dataFiltrada) {
         inversionActual += parseFloat(spent) || 0;
     });
 
-    // --- CÁLCULOS FINANCIEROS (CPA) ---
     const cpl = tLeads > 0 ? (inversionActual / tLeads).toFixed(2) : 0;
     const cpa_citas = tCitasGeneradas > 0 ? (inversionActual / tCitasGeneradas).toFixed(2) : 0;
     const cpa_citas_cal = tCitasCalendario > 0 ? (inversionActual / tCitasCalendario).toFixed(2) : 0;
     const costo_venta = tVentas > 0 ? (inversionActual / tVentas).toFixed(2) : 0;
 
-    // --- INYECCIÓN A LAS TARJETAS SEPARADAS Y EVENTOS DE CLIC ---
+    // 6. INYECCIÓN AL DOM (Vista General)
     const setMetric = (id, val, subtitleId, subtitleVal, clickData, clickTitle, clickDateCol) => {
         const el = document.getElementById(id);
         if(el) {
@@ -266,27 +189,28 @@ function renderizarVistaGeneral(dataFiltrada) {
     };
 
     setMetric('kpi-leads', tLeads, 'kpi-cpl', `CPL Estimado: $${cpl}`, leadsUnicosList, 'Volumen de Leads (Únicos)', 'Fecha Entrada');
+    setMetric('kpi-leads-gestionables', tLeadsGestionables, null, null, leadsGestionablesList, 'Leads Gestionables', 'Fecha Lead Gestionable Calculada');
     setMetric('kpi-citas-reprog', tCitasReprogramadas, null, null, citasReprogramadasList, 'Citas Reprogramadas', 'Cita Programada en');
     setMetric('kpi-stl', stlDisplay, null, null, null, null, null);
-    setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');    
+    setMetric('kpi-contactados', tContactados, 'kpi-contact-rate', `Contact Rate: ${contactRate}%`, leadsContactadosList, 'Leads Contactados', 'Fecha Last Call');
+    setMetric('kpi-llamadas', tLlamadasConectadas, 'kpi-conectividad', `Conectividad: ${conectividad}%`, llamadasConectadasList, 'Llamadas Conectadas', 'Fecha Last Call');
     setMetric('kpi-citas-gen', tCitasGeneradas, null, null, citasNuevas, 'Citas Generadas (Nuevas)', 'Fecha Creación');
+    
     const brEl = document.getElementById('kpi-booking-rate'); if(brEl) brEl.innerText = `${bookingRate}%`;
     const cpaEl = document.getElementById('kpi-cpa-cita'); if(cpaEl) cpaEl.innerText = cpa_citas;
 
     setMetric('kpi-citas-cal', tCitasCalendario, 'kpi-subtitle-citas-cal', `Costo x Cita (Cal): $${cpa_citas_cal}`, citasCalendarioRaw, 'Citas en Calendario', 'Fecha Programada');
-    
     setMetric('kpi-shows', tShows, 'kpi-show-rate', `Show Rate: ${showRate}%`, todosLosShows, 'Shows y Asistencias', 'Fecha Visita');
-    
     setMetric('kpi-ventas', tVentas, 'kpi-win-rate', `Win Rate: ${winRate}% <br> Costo x Venta: $${costo_venta}`, ventas, 'Ventas Cerradas', 'Fecha Visita');
 
     const progAds = metas.ads > 0 ? (inversionActual / metas.ads) * 100 : 0;
-   const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
-   if(topCards.length >= 1) {
-       topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${(metas.ads || 0).toLocaleString('en-US')}`;
+    const topCards = document.querySelectorAll('#view-general > .grid-cards:first-child .kpi-card');
+    if(topCards.length >= 1) {
+        topCards[0].querySelector('.metric-value').innerText = `$${inversionActual.toFixed(2)} / $${(metas.ads || 0).toLocaleString('en-US')}`;
         topCards[0].querySelector('.progress-bar-fill').style.width = `${Math.min(progAds, 100)}%`;
-   }
+    }
 
-    // DISTRIBUCIÓN DE PAGOS
+    // 7. DISTRIBUCIÓN DE PAGOS
     const paymentContainer = document.getElementById('payment-distribution-container');
     if (paymentContainer) {
         paymentContainer.innerHTML = ''; 
