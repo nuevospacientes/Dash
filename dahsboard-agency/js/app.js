@@ -446,6 +446,7 @@ function procesarYRenderizar() {
         leadsRaw: baseLeads, // Data cruda con duplicados (útil internamente para cruces)
         citasRaw: baseCitas, 
         marcasDeLlamadaRaw: baseContactados, // <-- IMPORTANTE: Necesario para que el Speed to Lead calcule todas las marcas
+        llamadasRaw: baseLlamadas,
 
         // DATA LIMPIA Y OFICIAL (Esta es la que usarán todos los módulos por defecto)
         leads: leadsUnicos,
