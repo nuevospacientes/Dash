@@ -185,6 +185,9 @@ function procesarBasesDeDatosMaestras() {
 }
 // =========================================================================
 
+// =========================================================================
+// FUNCIÓN MEJORADA: PARSEO Y FUSIÓN EXACTA DE FECHA + HORA
+// =========================================================================
 function parseDateSpanish(dateStr, row = null, colName = null) {
     if (!dateStr) return null;
     if (row && colName && row[`_ts_${colName}`] !== undefined) { return row[`_ts_${colName}`]; }
@@ -193,6 +196,7 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
     const meses = { 'ene':0,'enero':0,'feb':1,'febrero':1,'mar':2,'marzo':2,'abr':3,'abril':3,'may':4,'mayo':4,'jun':5,'junio':5,'jul':6,'julio':6,'ago':7,'agosto':7,'sep':8,'septiembre':8,'oct':9,'octubre':9,'nov':10,'noviembre':10,'dic':11,'diciembre':11 };
     let finalTime = null;
 
+    // 1. EXTRAER LA FECHA BASE (A la medianoche)
     if (str.includes(' de ')) {
         const p = str.split(' de ');
         if (p.length === 3) finalTime = new Date(parseInt(p[2]), meses[p[1]], parseInt(p[0])).getTime();
@@ -259,7 +263,45 @@ function parseDateSpanish(dateStr, row = null, colName = null) {
         }
     }
 
-    if (row && colName && finalTime !== null) { row[`_ts_${colName}`] = finalTime; }
+    // ==========================================================
+    // 2. MAGIA DE GRÁFICOS: INYECCIÓN DE LA HORA EXACTA (NUEVO)
+    // ==========================================================
+    if (row && finalTime !== null) {
+        let hStr = null;
+        
+        // Mapeo inteligente para saber qué columna de hora corresponde a cada columna de fecha
+        if (colName === 'Fecha entrada lead' || colName === 'Fecha Lead entra') {
+            hStr = row['Hora Generado'] || row['Hora entrada'];
+        } else if (colName === 'Fecha 1er llamada') {
+            hStr = row['Hora 1er llamada'];
+        } else if (colName === 'Fecha last call') {
+            hStr = row['Hora last call'];
+        } else if (colName === 'Cita generada') {
+            hStr = row['Hora Cita Generada'] || row['Hora'];
+        } else if (colName === 'Fecha Visita') {
+            hStr = row['Hora Visita'] || row['Hora'];
+        }
+
+        // Si el sistema encuentra una hora, la traduce y la fusiona con la fecha base
+        if (hStr) {
+            let tStr = String(hStr).trim().toLowerCase();
+            let isPM = tStr.includes('pm'), isAM = tStr.includes('am');
+            let p = tStr.replace(/[a-z]/g, '').trim().split(':'); 
+            let h = parseInt(p[0]||0, 10), m = parseInt(p[1]||0, 10);
+            
+            // Conversión de formato de 12h (AM/PM) a formato militar (24h)
+            if (isPM && h < 12) h += 12;
+            if (isAM && h === 12) h = 0;
+            
+            let exactDate = new Date(finalTime);
+            exactDate.setHours(h, m, 0); // Aplica la hora real al día
+            finalTime = exactDate.getTime();
+        }
+        
+        // Guardamos el timestamp perfecto (Fecha + Hora) en caché para que los gráficos lo usen al instante
+        row[`_ts_${colName}`] = finalTime;
+    }
+
     return finalTime;
 }
 
