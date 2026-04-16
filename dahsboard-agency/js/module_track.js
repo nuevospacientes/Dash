@@ -172,22 +172,69 @@ function renderizarCallTracker(dataFiltrada) {
         statsCamp[camp].shows++;
     });
 
-    // 4. ACTUALIZAR EMBUDO 
+    // 4. ACTUALIZAR EMBUDO (Alineado con métricas reales: Leads -> Contactados -> Citas -> Shows -> Ventas)
     const fLeads = leads.length;
+    // Utilizamos un Set temporal para contar los Contactados Únicos globalmente en esta vista
+    const uniqueContactadosSet = new Set();
+    contactados.forEach(c => {
+        let num = String(c['Numero'] || '').trim();
+        if (num !== '') uniqueContactadosSet.add(num);
+    });
+    const fContactados = uniqueContactadosSet.size;
     const fCitas = citas.length;
     const fShows = shows.length;
     const fVentas = totalVentas;
 
-    document.getElementById('track-funnel-clicks').innerText = totalClicks.toLocaleString();
-    document.getElementById('track-funnel-leads').innerText = fLeads.toLocaleString();
-    document.getElementById('track-funnel-citas').innerText = fCitas.toLocaleString();
-    document.getElementById('track-funnel-shows').innerText = fShows.toLocaleString();
-    document.getElementById('track-funnel-ventas').innerText = fVentas.toLocaleString();
+    // Actualizar los números grandes en el HTML
+    // Nota: Como vamos a reemplazar 'Clics' por 'Leads' en el HTML, usaremos los IDs existentes para no romper el HTML por ahora, 
+    // pero inyectaremos los datos correctos en el orden del nuevo embudo.
+    const elPaso1 = document.getElementById('track-funnel-clicks'); // Ahora será Leads
+    const elPaso2 = document.getElementById('track-funnel-leads');  // Ahora será Contactados
+    const elPaso3 = document.getElementById('track-funnel-citas');  // Se mantiene como Citas
+    const elPaso4 = document.getElementById('track-funnel-shows');  // Se mantiene como Shows
+    const elPaso5 = document.getElementById('track-funnel-ventas'); // Se mantiene como Ventas
 
-    document.getElementById('track-drop-1').innerText = `↳ ${totalClicks>0 ? ((fLeads/totalClicks)*100).toFixed(1) : 0}% conversión a Lead`;
-    document.getElementById('track-drop-2').innerText = `↳ ${fLeads>0 ? ((fCitas/fLeads)*100).toFixed(1) : 0}% booking rate`;
-    document.getElementById('track-drop-3').innerText = `↳ ${fCitas>0 ? ((fShows/fCitas)*100).toFixed(1) : 0}% asistencia`;
-    document.getElementById('track-drop-4').innerText = `↳ ${fShows>0 ? ((fVentas/fShows)*100).toFixed(1) : 0}% cierre`;
+    if (elPaso1) {
+        elPaso1.innerText = fLeads.toLocaleString();
+        // Cambiar dinámicamente el título en el HTML anterior
+        const prevTitle = elPaso1.previousElementSibling;
+        if (prevTitle && prevTitle.innerText.includes('Clics')) prevTitle.innerText = '1. Leads Generados';
+    }
+    
+    if (elPaso2) {
+        elPaso2.innerText = fContactados.toLocaleString();
+        const prevTitle = elPaso2.previousElementSibling;
+        if (prevTitle && prevTitle.innerText.includes('Leads')) prevTitle.innerText = '2. Leads Contactados';
+    }
+
+    if (elPaso3) {
+        elPaso3.innerText = fCitas.toLocaleString();
+        const prevTitle = elPaso3.previousElementSibling;
+        if (prevTitle) prevTitle.innerText = '3. Citas Agendadas';
+    }
+    
+    if (elPaso4) {
+        elPaso4.innerText = fShows.toLocaleString();
+        const prevTitle = elPaso4.previousElementSibling;
+        if (prevTitle) prevTitle.innerText = '4. Asistencias (Shows)';
+    }
+
+    if (elPaso5) {
+        elPaso5.innerText = fVentas.toLocaleString();
+        const prevTitle = elPaso5.previousElementSibling;
+        if (prevTitle) prevTitle.innerText = '5. Ventas Cerradas';
+    }
+
+    // Actualizar los porcentajes de caída (Drop Rates)
+    const drop1 = document.getElementById('track-drop-1');
+    const drop2 = document.getElementById('track-drop-2');
+    const drop3 = document.getElementById('track-drop-3');
+    const drop4 = document.getElementById('track-drop-4');
+
+    if(drop1) drop1.innerText = `↳ ${fLeads > 0 ? ((fContactados / fLeads) * 100).toFixed(1) : 0}% Contact Rate`;
+    if(drop2) drop2.innerText = `↳ ${fLeads > 0 ? ((fCitas / fLeads) * 100).toFixed(1) : 0}% Booking Rate`; // Se calcula en base a leads (estándar de la industria)
+    if(drop3) drop3.innerText = `↳ ${fCitas > 0 ? ((fShows / fCitas) * 100).toFixed(1) : 0}% Show Rate`;
+    if(drop4) drop4.innerText = `↳ ${fShows > 0 ? ((fVentas / fShows) * 100).toFixed(1) : 0}% Win Rate`;
 
     const sortArray = (arr, state) => {
         return arr.sort((a, b) => {
