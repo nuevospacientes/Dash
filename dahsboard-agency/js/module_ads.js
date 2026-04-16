@@ -11,13 +11,16 @@ window.adsApp = {
     totals: {},
     isInitialized: false,
 
-    // Diccionario maestro de métricas disponibles para las tarjetas
+    // Diccionario maestro de métricas disponibles para las tarjetas y tabla
     METRICS_DEF: {
         leads: { label: 'Leads Totales', type: 'number' },
+        leads_gestionables: { label: 'Leads Gestionables', type: 'number' },
         cpl: { label: 'CPL Promedio', type: 'currency' },
         contactados: { label: 'Leads Contactados', type: 'number' },
         cpq: { label: 'Costo x Contacto', type: 'currency' },
-        citas: { label: 'Citas Agendadas', type: 'number' },
+        citas: { label: 'Citas Nuevas', type: 'number' },
+        citas_reprog: { label: 'Citas Reprogramadas', type: 'number' },
+        citas_cal: { label: 'Citas en Calendario', type: 'number' },
         cp_cita: { label: 'Costo x Cita', type: 'currency' },
         shows: { label: 'Asistencias (Shows)', type: 'number' },
         cp_show: { label: 'Costo x Asist', type: 'currency' },
@@ -32,7 +35,7 @@ window.adsApp = {
         clics: { label: 'Clics Totales', type: 'number' },
         ctr: { label: 'CTR Promedio', type: 'percentage' },
         impresiones: { label: 'Impresiones', type: 'number' },
-        stl: { label: 'Speed to Lead', type: 'time' } // STL Agregado
+        stl: { label: 'Speed to Lead', type: 'time' } 
     },
 
     init: function() {
@@ -42,16 +45,22 @@ window.adsApp = {
             { id: 'clics', label: 'Clics ↕', type: 'number', visible: true, align: 'right', color: '' },
             { id: 'ctr', label: 'CTR ↕', type: 'percentage', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'leads', label: 'Leads ↕', type: 'number', visible: true, align: 'right', color: '' },
+            { id: 'leads_gestionables', label: 'Leads Gest. ↕', type: 'number', visible: false, align: 'right', color: 'var(--text-muted)' },
             { id: 'cpl', label: 'CPL ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'contactados', label: 'Contactados ↕', type: 'number', visible: true, align: 'right', color: 'var(--brand-primary)' },
             { id: 'cpq', label: 'Costo x Contacto ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
-            { id: 'citas', label: 'Citas ↕', type: 'number', visible: true, align: 'right', color: 'var(--brand-primary)' },
-            { id: 'cp_cita', label: 'Costo x Cita ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
+            
+            // NUEVAS COLUMNAS DE CITAS
+            { id: 'citas', label: 'Citas Nuevas ↕', type: 'number', visible: true, align: 'right', color: 'var(--brand-primary)' },
+            { id: 'citas_reprog', label: 'Citas Reprog. ↕', type: 'number', visible: true, align: 'right', color: 'var(--text-muted)' },
+            { id: 'citas_cal', label: 'Citas Calendario ↕', type: 'number', visible: true, align: 'right', color: 'var(--accent-warning)' },
+            
+            { id: 'cp_cita', label: 'Costo x Cita (Nueva) ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'shows', label: 'Shows ↕', type: 'number', visible: true, align: 'right', color: 'var(--accent-warning)' },
             { id: 'cp_show', label: 'Costo x Show ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
             { id: 'ventas', label: 'Ventas ↕', type: 'number', visible: true, align: 'right', color: 'var(--accent-success)' },
             { id: 'cpa', label: 'CPA ↕', type: 'currency', visible: true, align: 'right', color: 'var(--text-muted)' },
-            { id: 'stl', label: 'Speed To Lead ↕', type: 'time', visible: true, align: 'right', color: '#bc13fe' }, // Columna STL Agregada
+            { id: 'stl', label: 'Speed To Lead ↕', type: 'time', visible: true, align: 'right', color: '#bc13fe' },
             { id: 'ingresos', label: 'Ingresos ↕', type: 'currency', visible: false, align: 'right', color: '#10b981' },
             { id: 'roas', label: 'ROAS ↕', type: 'roas', visible: false, align: 'right', color: '#bc13fe' }
         ];
@@ -120,8 +129,10 @@ window.adsApp = {
             if(!c || String(c).trim() === '') c = 'Desconocida';
             if(!stats[c]) stats[c] = {
                 campana: c, gasto: 0, clics: 0, impresiones: 0,
-                leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0,
-                stlSum: 0, stlCount: 0, stl: 0, // Variables STL
+                leads: 0, leads_gestionables: 0, contactados: 0, 
+                citas: 0, citas_reprog: 0, citas_cal: 0, 
+                shows: 0, ventas: 0, ingresos: 0,
+                stlSum: 0, stlCount: 0, stl: 0, 
                 isActive: false
             };
             return c;
@@ -150,7 +161,9 @@ window.adsApp = {
             });
         }
 
+        // Atribución de Leads y Citas desde la Fuente Central
         dataFiltrada.leads.forEach(r => { stats[init(r['Campaña'])].leads++; });
+        if(dataFiltrada.leadsGestionables) dataFiltrada.leadsGestionables.forEach(r => { stats[init(r['Campaña'])].leads_gestionables++; });
 
         const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
 
@@ -163,7 +176,6 @@ window.adsApp = {
                 leadsContactadosSet[c].add(num);
             }
             
-            // Cálculo del STL para esta campaña
             let bMins = r['_stl_' + globalTz];
             if (bMins !== undefined && bMins !== null) {
                 stats[c].stlSum += bMins;
@@ -173,7 +185,11 @@ window.adsApp = {
         
         for(let c in leadsContactadosSet) stats[c].contactados = leadsContactadosSet[c].size;
 
-        dataFiltrada.citas.forEach(r => { stats[init(r['Campaña'])].citas++; });
+        // Distribución de todas las citas a la Campaña
+        if(dataFiltrada.citas) dataFiltrada.citas.forEach(r => { stats[init(r['Campaña'])].citas++; });
+        if(dataFiltrada.citasReprog) dataFiltrada.citasReprog.forEach(r => { stats[init(r['Campaña'])].citas_reprog++; });
+        if(dataFiltrada.citasCalendario) dataFiltrada.citasCalendario.forEach(r => { stats[init(r['Campaña'])].citas_cal++; });
+
         dataFiltrada.shows.forEach(r => { stats[init(r['Campaña'])].shows++; });
 
         dataFiltrada.shows.filter(s => {
@@ -194,7 +210,7 @@ window.adsApp = {
             r.cpa = r.ventas > 0 ? r.gasto / r.ventas : 0;
             r.roas = r.gasto > 0 ? r.ingresos / r.gasto : 0;
             r.ctr = r.impresiones > 0 ? (r.clics / r.impresiones) * 100 : 0;
-            r.stl = r.stlCount > 0 ? Math.round(r.stlSum / r.stlCount) : 0; // STL Promedio final
+            r.stl = r.stlCount > 0 ? Math.round(r.stlSum / r.stlCount) : 0;
             
             this.customColumns.forEach(cc => { r[cc.id] = this.evaluateFormula(cc.formula, r); });
             return r;
@@ -232,7 +248,7 @@ window.adsApp = {
         let visibleCols = this.tableColumns.filter(c => c.visible);
 
         let searchTerm = document.getElementById('ads-search-camp') ? document.getElementById('ads-search-camp').value.toLowerCase() : '';
-        let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'all'; // Cambiado a 'all'
+        let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'all'; 
 
         visibleCols.forEach((col) => {
             const th = document.createElement('th');
@@ -264,11 +280,13 @@ window.adsApp = {
             return true;
         });
 
-        let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, contactados: 0, citas: 0, shows: 0, ventas: 0, ingresos: 0, stlSum: 0, stlCount: 0 };
+        // Totales que incluyen las nuevas métricas
+        let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, leads_gestionables: 0, contactados: 0, citas: 0, citas_reprog: 0, citas_cal: 0, shows: 0, ventas: 0, ingresos: 0, stlSum: 0, stlCount: 0 };
 
         filteredData.forEach(row => {
             t.gasto += row.gasto||0; t.clics += row.clics||0; t.impresiones += row.impresiones||0;
-            t.leads += row.leads||0; t.contactados += row.contactados||0; t.citas += row.citas||0;
+            t.leads += row.leads||0; t.leads_gestionables += row.leads_gestionables||0; t.contactados += row.contactados||0; 
+            t.citas += row.citas||0; t.citas_reprog += row.citas_reprog||0; t.citas_cal += row.citas_cal||0;
             t.shows += row.shows||0; t.ventas += row.ventas||0; t.ingresos += row.ingresos||0;
             t.stlSum += row.stlSum||0; t.stlCount += row.stlCount||0;
 
