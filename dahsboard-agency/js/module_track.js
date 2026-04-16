@@ -41,8 +41,13 @@ function renderizarCallTracker(dataFiltrada) {
     const contactados = dataFiltrada.marcasDeLlamadaRaw || [];
     const leads = dataFiltrada.leads || [];
     const citas = dataFiltrada.citas || [];
-    const shows = dataFiltrada.shows || [];
     const ads = dataFiltrada.ads || [];
+
+    // 1. UNIFICACIÓN SHOWS Y VENTAS (Idéntico a Vista General y Buying Media)
+    const showsRaw = dataFiltrada.shows || [];
+    const showsNtRaw = dataFiltrada.showsNt || [];
+    const todosLosShows = [...showsRaw, ...showsNtRaw];
+    const ventasGlobales = showsRaw;
 
     const numeroAOperador = {};
     citas.forEach(c => {
@@ -160,12 +165,7 @@ function renderizarCallTracker(dataFiltrada) {
         if(op !== 'Sin Asignar') statsCamp[camp].ops.add(op);
     });
 
-    let totalVentas = shows.filter(s => {
-        const dep = (s['Deposito'] || '').toLowerCase().trim();
-        return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
-    }).length;
-
-    shows.forEach(s => {
+    todosLosShows.forEach(s => {
         let op = (s['Operador'] || 'Sin Asignar').trim(); initOp(op);
         let camp = (s['Campaña'] || 'Desconocida').trim(); initCamp(camp);
         if (op !== 'Sin Asignar') statsOp[op].shows++;
@@ -174,16 +174,18 @@ function renderizarCallTracker(dataFiltrada) {
 
     // 4. ACTUALIZAR EMBUDO (Alineado con métricas reales: Leads -> Contactados -> Citas -> Shows -> Ventas)
     const fLeads = leads.length;
-    // Utilizamos un Set temporal para contar los Contactados Únicos globalmente en esta vista
+    
+    // Contar Contactados Únicos para el paso 2 del embudo
     const uniqueContactadosSet = new Set();
     contactados.forEach(c => {
         let num = String(c['Numero'] || '').trim();
         if (num !== '') uniqueContactadosSet.add(num);
     });
     const fContactados = uniqueContactadosSet.size;
+    
     const fCitas = citas.length;
-    const fShows = shows.length;
-    const fVentas = totalVentas;
+    const fShows = todosLosShows.length;
+    const fVentas = ventasGlobales.length;
 
     // Actualizar los números grandes en el HTML
     // Nota: Como vamos a reemplazar 'Clics' por 'Leads' en el HTML, usaremos los IDs existentes para no romper el HTML por ahora, 
@@ -215,14 +217,9 @@ function renderizarCallTracker(dataFiltrada) {
     
     if (elPaso4) {
         elPaso4.innerText = fShows.toLocaleString();
-        const prevTitle = elPaso4.previousElementSibling;
-        if (prevTitle) prevTitle.innerText = '4. Asistencias (Shows)';
     }
-
     if (elPaso5) {
         elPaso5.innerText = fVentas.toLocaleString();
-        const prevTitle = elPaso5.previousElementSibling;
-        if (prevTitle) prevTitle.innerText = '5. Ventas Cerradas';
     }
 
     // Actualizar los porcentajes de caída (Drop Rates)
