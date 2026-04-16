@@ -142,7 +142,10 @@ window.adsApp = {
                 citas: 0, citas_reprog: 0, citas_cal: 0, 
                 shows: 0, ventas: 0, ingresos: 0,
                 stlSum: 0, stlCount: 0, stl: 0, 
-                isActive: false
+                isActive: false,
+                // ARREGLOS PARA GUARDAR EL DETALLE DE LOS MODALES
+                _rawLeads: [], _rawContactados: [], _rawCitas: [], 
+                _rawCitasCal: [], _rawShows: [], _rawVentas: []
             };
             return c;
         };
@@ -170,8 +173,14 @@ window.adsApp = {
             });
         }
 
-        // Atribución de Leads y Citas desde la Fuente Central
-        dataFiltrada.leads.forEach(r => { stats[init(r['Campaña'])].leads++; });
+       // Atribución de Leads y Citas desde la Fuente Central
+        dataFiltrada.leads.forEach(r => { 
+            let c = init(r['Campaña']); 
+            stats[c].leads++; 
+            stats[c]._rawLeads.push(r); 
+            stats[c].isActive = true; 
+        });
+        
         if(dataFiltrada.leadsGestionables) dataFiltrada.leadsGestionables.forEach(r => { stats[init(r['Campaña'])].leads_gestionables++; });
 
         const globalTz = document.getElementById('global-timezone') ? document.getElementById('global-timezone').value : 'America/Mexico_City';
@@ -179,10 +188,15 @@ window.adsApp = {
         let leadsContactadosSet = {};
         dataFiltrada.contactados.forEach(r => {
             let c = init(r['Campaña']);
+            stats[c].isActive = true;
             let num = String(r['Numero']||'').trim();
             if(num !== '') {
                 if(!leadsContactadosSet[c]) leadsContactadosSet[c] = new Set();
-                leadsContactadosSet[c].add(num);
+                // Solo guardamos el registro si es un número nuevo contactado
+                if(!leadsContactadosSet[c].has(num)) {
+                    leadsContactadosSet[c].add(num);
+                    stats[c]._rawContactados.push(r);
+                }
             }
             
             let bMins = r['_stl_' + globalTz];
@@ -191,23 +205,24 @@ window.adsApp = {
                 stats[c].stlCount++;
             }
         });
-        
         for(let c in leadsContactadosSet) stats[c].contactados = leadsContactadosSet[c].size;
 
-        // Distribución de todas las citas a la Campaña
-        if(dataFiltrada.citas) dataFiltrada.citas.forEach(r => { stats[init(r['Campaña'])].citas++; });
-        if(dataFiltrada.citasReprog) dataFiltrada.citasReprog.forEach(r => { stats[init(r['Campaña'])].citas_reprog++; });
-        if(dataFiltrada.citasCalendario) dataFiltrada.citasCalendario.forEach(r => { stats[init(r['Campaña'])].citas_cal++; });
+        // Distribución de Citas y Calendario
+        if(dataFiltrada.citas) dataFiltrada.citas.forEach(r => { let c = init(r['Campaña']); stats[c].citas++; stats[c]._rawCitas.push(r); stats[c].isActive = true; });
+        if(dataFiltrada.citasReprog) dataFiltrada.citasReprog.forEach(r => { let c = init(r['Campaña']); stats[c].citas_reprog++; stats[c].isActive = true; });
+        if(dataFiltrada.citasCalendario) dataFiltrada.citasCalendario.forEach(r => { let c = init(r['Campaña']); stats[c].citas_cal++; stats[c]._rawCitasCal.push(r); stats[c].isActive = true; });
 
-        // 1. Shows Totales (Suma de Shows regulares + Shows NT, igual que en Vista General)
-        if(dataFiltrada.shows) dataFiltrada.shows.forEach(r => { stats[init(r['Campaña'])].shows++; });
-        if(dataFiltrada.showsNt) dataFiltrada.showsNt.forEach(r => { stats[init(r['Campaña'])].shows++; });
+        // Shows
+        if(dataFiltrada.shows) dataFiltrada.shows.forEach(r => { let c = init(r['Campaña']); stats[c].shows++; stats[c]._rawShows.push(r); stats[c].isActive = true; });
+        if(dataFiltrada.showsNt) dataFiltrada.showsNt.forEach(r => { let c = init(r['Campaña']); stats[c].shows++; stats[c]._rawShows.push(r); stats[c].isActive = true; });
 
-        // 2. Ventas Cerradas (Todo lo que está en la hoja shows es venta, igual que en Vista General)
+        // Ventas
         if(dataFiltrada.shows) {
             dataFiltrada.shows.forEach(s => {
                 let c = init(s['Campaña']);
                 stats[c].ventas++;
+                stats[c]._rawVentas.push(s);
+                stats[c].isActive = true;
                 let amt = parseFloat(String(s['Monto ($)'] || s['Monto'] || s['Precio'] || '0').replace(/[^0-9.-]+/g,""));
                 stats[c].ingresos += isNaN(amt) ? 0 : amt;
             });
@@ -372,7 +387,7 @@ window.adsApp = {
             tdCheck.appendChild(rowCheck);
             tr.appendChild(tdCheck);
 
-            // Celdas normales
+            // Celdas normales y Modales Interactivos
             visibleCols.forEach(col => {
                 const td = document.createElement('td');
                 td.style.textAlign = col.align;
@@ -388,7 +403,37 @@ window.adsApp = {
                     td.style.boxShadow = '2px 0 5px rgba(0,0,0,0.1)';
                 }
                 
-                td.innerHTML = this.formatMetric(row[col.id], col.type);
+                let formattedVal = this.formatMetric(row[col.id], col.type);
+
+                // Definimos qué columnas son clickeables y qué info mandan al modal
+                const clickableCols = {
+                    'leads': { data: row._rawLeads, title: 'Leads Totales', dateCol: 'Fecha Entrada' },
+                    'contactados': { data: row._rawContactados, title: 'Leads Contactados', dateCol: 'Fecha Last Call' },
+                    'citas': { data: row._rawCitas, title: 'Citas Nuevas', dateCol: 'Fecha Creación' },
+                    'citas_cal': { data: row._rawCitasCal, title: 'Citas en Calendario', dateCol: 'Fecha Programada' },
+                    'shows': { data: row._rawShows, title: 'Shows y Asistencias', dateCol: 'Fecha Visita' },
+                    'ventas': { data: row._rawVentas, title: 'Ventas Cerradas', dateCol: 'Fecha Visita' }
+                };
+
+                // Si la columna es clickeable y el número es mayor a 0, le damos formato de link
+                if (clickableCols[col.id] && row[col.id] > 0) {
+                    let config = clickableCols[col.id];
+                    let span = document.createElement('span');
+                    span.innerHTML = formattedVal;
+                    span.style.cursor = 'pointer';
+                    span.style.textDecoration = 'underline';
+                    span.style.textUnderlineOffset = '3px';
+                    span.style.fontWeight = '600';
+                    span.onclick = () => {
+                        if (typeof window.abrirModalLista === 'function') {
+                            window.abrirModalLista(`${config.title} - ${row.campana}`, config.data, config.dateCol);
+                        }
+                    };
+                    td.appendChild(span);
+                } else {
+                    td.innerHTML = formattedVal;
+                }
+                
                 tr.appendChild(td);
             });
             tbody.appendChild(tr);
