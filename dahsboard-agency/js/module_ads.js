@@ -10,6 +10,7 @@ window.adsApp = {
     consolidatedData: [],
     totals: {},
     isInitialized: false,
+    selectedCampaigns: new Set(),
 
     // Diccionario maestro de métricas disponibles para las tarjetas y tabla
     METRICS_DEF: {
@@ -84,9 +85,17 @@ window.adsApp = {
             }
         });
 
-        // Configuración de filtro por defecto
+        // Configuración de filtro por defecto y añadir opción "Seleccionadas"
         const statusFilter = document.getElementById('ads-status-filter');
-        if (statusFilter) statusFilter.value = 'all';
+        if (statusFilter) {
+            if (!statusFilter.querySelector('option[value="selected"]')) {
+                const opt = document.createElement('option');
+                opt.value = 'selected';
+                opt.innerHTML = '☑️ Solo Seleccionadas';
+                statusFilter.appendChild(opt);
+            }
+            statusFilter.value = 'all';
+        }
 
         this.isInitialized = true;
     },
@@ -190,17 +199,19 @@ window.adsApp = {
         if(dataFiltrada.citasReprog) dataFiltrada.citasReprog.forEach(r => { stats[init(r['Campaña'])].citas_reprog++; });
         if(dataFiltrada.citasCalendario) dataFiltrada.citasCalendario.forEach(r => { stats[init(r['Campaña'])].citas_cal++; });
 
-        dataFiltrada.shows.forEach(r => { stats[init(r['Campaña'])].shows++; });
+        // 1. Shows Totales (Suma de Shows regulares + Shows NT, igual que en Vista General)
+        if(dataFiltrada.shows) dataFiltrada.shows.forEach(r => { stats[init(r['Campaña'])].shows++; });
+        if(dataFiltrada.showsNt) dataFiltrada.showsNt.forEach(r => { stats[init(r['Campaña'])].shows++; });
 
-        dataFiltrada.shows.filter(s => {
-            const dep = (s['Deposito'] || '').toLowerCase().trim();
-            return dep !== '' && dep !== 'sin deposito' && dep !== 'sin depósito';
-        }).forEach(s => {
-            let c = init(s['Campaña']);
-            stats[c].ventas++;
-            let amt = parseFloat(String(s['Monto ($)'] || s['Monto'] || s['Precio'] || '0').replace(/[^0-9.-]+/g,""));
-            stats[c].ingresos += isNaN(amt) ? 0 : amt;
-        });
+        // 2. Ventas Cerradas (Todo lo que está en la hoja shows es venta, igual que en Vista General)
+        if(dataFiltrada.shows) {
+            dataFiltrada.shows.forEach(s => {
+                let c = init(s['Campaña']);
+                stats[c].ventas++;
+                let amt = parseFloat(String(s['Monto ($)'] || s['Monto'] || s['Precio'] || '0').replace(/[^0-9.-]+/g,""));
+                stats[c].ingresos += isNaN(amt) ? 0 : amt;
+            });
+        }
 
         let arr = Object.values(stats).map(r => {
             r.cpl = r.leads > 0 ? r.gasto / r.leads : 0;
@@ -250,6 +261,37 @@ window.adsApp = {
         let searchTerm = document.getElementById('ads-search-camp') ? document.getElementById('ads-search-camp').value.toLowerCase() : '';
         let statusFilter = document.getElementById('ads-status-filter') ? document.getElementById('ads-status-filter').value : 'all'; 
 
+        // 1. COLUMNA MAESTRA DE CHECKBOXES (Sticky a la izquierda)
+        const thCheck = document.createElement('th');
+        thCheck.style.position = 'sticky';
+        thCheck.style.left = '0px';
+        thCheck.style.background = 'var(--bg-input)';
+        thCheck.style.zIndex = '30';
+        thCheck.style.width = '40px';
+        thCheck.style.minWidth = '40px';
+        thCheck.style.textAlign = 'center';
+        
+        const masterCheck = document.createElement('input');
+        masterCheck.type = 'checkbox';
+        masterCheck.style.cursor = 'pointer';
+        
+        masterCheck.onchange = (e) => {
+            if (e.target.checked) {
+                // Selecciona solo lo que actualmente está filtrado en pantalla
+                this.consolidatedData.forEach(r => {
+                    if (!searchTerm || r.campana.toLowerCase().includes(searchTerm)) {
+                        this.selectedCampaigns.add(r.campana);
+                    }
+                });
+            } else {
+                this.selectedCampaigns.clear();
+            }
+            this.renderTable();
+        };
+        thCheck.appendChild(masterCheck);
+        thead.appendChild(thCheck);
+
+        // 2. RENDERIZAR ENCABEZADOS NORMALES
         visibleCols.forEach((col) => {
             const th = document.createElement('th');
             th.className = `draggable-header`;
@@ -257,6 +299,15 @@ window.adsApp = {
             th.style.minWidth = col.id === 'campana' ? '250px' : '130px'; 
             th.draggable = true; 
             th.innerHTML = col.label;
+
+            // Congelar (Sticky) la columna Campaña al lado del Checkbox
+            if (col.id === 'campana') {
+                th.style.position = 'sticky';
+                th.style.left = '40px';
+                th.style.background = 'var(--bg-input)';
+                th.style.zIndex = '25';
+                th.style.boxShadow = '2px 0 5px rgba(0,0,0,0.1)';
+            }
             
             const resizer = document.createElement('div');
             resizer.className = 'resizer';
@@ -273,16 +324,23 @@ window.adsApp = {
             thead.appendChild(th);
         });
 
+        // 3. FILTRAR DATOS
         let filteredData = this.consolidatedData.filter(row => {
             if (searchTerm && !row.campana.toLowerCase().includes(searchTerm)) return false;
             if (statusFilter === 'active' && !row.isActive) return false;
             if (statusFilter === 'inactive' && row.isActive) return false;
+            // Filtro específico para Meta Ads (Solo Seleccionadas)
+            if (statusFilter === 'selected' && !this.selectedCampaigns.has(row.campana)) return false; 
             return true;
         });
 
-        // Totales que incluyen las nuevas métricas
+        // Actualizar estado del master checkbox
+        let allSelected = filteredData.length > 0 && filteredData.every(r => this.selectedCampaigns.has(r.campana));
+        masterCheck.checked = allSelected;
+
         let t = { gasto: 0, clics: 0, impresiones: 0, leads: 0, leads_gestionables: 0, contactados: 0, citas: 0, citas_reprog: 0, citas_cal: 0, shows: 0, ventas: 0, ingresos: 0, stlSum: 0, stlCount: 0 };
 
+        // 4. RENDERIZAR FILAS
         filteredData.forEach(row => {
             t.gasto += row.gasto||0; t.clics += row.clics||0; t.impresiones += row.impresiones||0;
             t.leads += row.leads||0; t.leads_gestionables += row.leads_gestionables||0; t.contactados += row.contactados||0; 
@@ -291,11 +349,44 @@ window.adsApp = {
             t.stlSum += row.stlSum||0; t.stlCount += row.stlCount||0;
 
             const tr = document.createElement('tr');
+            
+            // Celda de Checkbox de la fila
+            const tdCheck = document.createElement('td');
+            tdCheck.style.position = 'sticky';
+            tdCheck.style.left = '0px';
+            tdCheck.style.background = 'var(--bg-panel)';
+            tdCheck.style.zIndex = '15';
+            tdCheck.style.textAlign = 'center';
+            
+            const rowCheck = document.createElement('input');
+            rowCheck.type = 'checkbox';
+            rowCheck.style.cursor = 'pointer';
+            rowCheck.checked = this.selectedCampaigns.has(row.campana);
+            rowCheck.onchange = (e) => {
+                if(e.target.checked) this.selectedCampaigns.add(row.campana);
+                else this.selectedCampaigns.delete(row.campana);
+                
+                // Si estamos en la vista de seleccionados, ocultar instantáneamente la fila al desmarcar
+                if (statusFilter === 'selected') this.renderTable();
+            };
+            tdCheck.appendChild(rowCheck);
+            tr.appendChild(tdCheck);
+
+            // Celdas normales
             visibleCols.forEach(col => {
                 const td = document.createElement('td');
                 td.style.textAlign = col.align;
                 if(col.color) td.style.color = col.color;
-                if(col.id === 'campana') td.style.fontWeight = 'bold';
+                
+                // Hacer el nombre de campaña sticky
+                if(col.id === 'campana') {
+                    td.style.fontWeight = 'bold';
+                    td.style.position = 'sticky';
+                    td.style.left = '40px';
+                    td.style.background = 'var(--bg-panel)';
+                    td.style.zIndex = '15';
+                    td.style.boxShadow = '2px 0 5px rgba(0,0,0,0.1)';
+                }
                 
                 td.innerHTML = this.formatMetric(row[col.id], col.type);
                 tr.appendChild(td);
@@ -304,7 +395,8 @@ window.adsApp = {
         });
 
         if(filteredData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${visibleCols.length}" style="text-align: center; padding: 20px; color: var(--text-muted);">No hay campañas que coincidan con tu búsqueda o filtro.</td></tr>`;
+            // El +1 es por la columna extra del checkbox
+            tbody.innerHTML = `<tr><td colspan="${visibleCols.length + 1}" style="text-align: center; padding: 20px; color: var(--text-muted);">No hay campañas que coincidan con tu búsqueda o filtro.</td></tr>`;
         } else {
             t.cpl = t.leads > 0 ? t.gasto / t.leads : 0;
             t.cpq = t.contactados > 0 ? t.gasto / t.contactados : 0;
@@ -318,9 +410,27 @@ window.adsApp = {
             this.customColumns.forEach(cc => { t[cc.id] = this.evaluateFormula(cc.formula, t); });
 
             const trTotal = document.createElement('tr');
+            
+            // Celda vacía para el footer debajo del checkbox
+            const tdCheckFoot = document.createElement('td');
+            tdCheckFoot.style.position = 'sticky';
+            tdCheckFoot.style.left = '0px';
+            tdCheckFoot.style.background = 'var(--bg-panel)';
+            tdCheckFoot.style.zIndex = '15';
+            trTotal.appendChild(tdCheckFoot);
+
             visibleCols.forEach((col, idx) => {
                 const td = document.createElement('td');
                 td.style.textAlign = col.align;
+                
+                if(col.id === 'campana') {
+                    td.style.position = 'sticky';
+                    td.style.left = '40px';
+                    td.style.background = 'var(--bg-panel)';
+                    td.style.zIndex = '15';
+                    td.style.boxShadow = '2px 0 5px rgba(0,0,0,0.1)';
+                }
+
                 if (idx === 0) td.innerHTML = 'TOTAL GLOBAL FILTRADO';
                 else td.innerHTML = this.formatMetric(t[col.id], col.type);
                 trTotal.appendChild(td);
